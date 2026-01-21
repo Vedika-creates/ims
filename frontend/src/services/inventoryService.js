@@ -4,6 +4,12 @@ export const inventoryService = {
   // Get all inventory items
   getItems: async () => {
     const response = await api.get('/inventory')
+    return response.data?.filter(item => item.is_active === true) || []
+  },
+
+  // Get inventory summary for dashboard
+  getSummary: async () => {
+    const response = await api.get('/inventory/summary')
     return response.data
   },
 
@@ -31,21 +37,9 @@ export const inventoryService = {
     return response.data
   },
 
-  // Get inventory statistics
-  getStats: async () => {
-    const response = await api.get('/inventory/stats')
-    return response.data
-  },
-
-  // Get low stock items
-  getLowStockItems: async () => {
-    const response = await api.get('/inventory/low-stock')
-    return response.data
-  },
-
-  // Update stock levels
-  updateStock: async (id, stockData) => {
-    const response = await api.patch(`/inventory/${id}/stock`, stockData)
+  // Adjust stock levels
+  adjustStock: async (stockData) => {
+    const response = await api.post('/inventory/adjust', stockData)
     return response.data
   }
 }

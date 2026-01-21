@@ -5,8 +5,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # Production builds
-/client/dist/
-/server/build/
+/backend/dist/
+/frontend/dist/
+/backend/build/
+/frontend/build/
 
 # Environment variables
 .env
@@ -105,9 +107,37 @@ Thumbs.db
 tmp/
 temp/
 
-# Backup files
-*.bak
-*.backup
+# Development and test files
+test_*.js
+test_*.sql
+test_*.html
+debug_*.js
+debug_*.sql
+check_*.js
+check_*.sql
+*_test.js
+*_test.sql
+*_debug.js
+*_debug.sql
+*_check.js
+*_check.sql
+simple_*.js
+minimal_*.sql
+quick_*.sql
+fix_*.sql
+add_*.sql
+update_*.sql
+convert_*.sql
+populate_*.js
+insert_*.js
+*.cjs
+
+# Cleanup scripts
+cleanup.ps1
+backend_cleanup.ps1
+
+# Temporary response files
+*_response.json
 
 # Database backups
 *.sql.backup
