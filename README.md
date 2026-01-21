@@ -309,7 +309,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-For support, please email support@example.com or create an issue in the repository.
+For support, please email vedikakumbhar1007@gmail.com or create an issue in the repository.
 
 ---
 
