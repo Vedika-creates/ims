@@ -41,9 +41,11 @@ const Dashboard = () => {
   }, [])
 
   const getStockStatus = (item) => {
-    if (item.current_stock <= 0) {
+    const currentStock = Number(item.current_stock ?? 0)
+    const reorderPoint = Number(item.reorder_point ?? 0)
+    if (currentStock <= 0) {
       return { status: 'out_of_stock', color: 'text-red-600 bg-red-100', icon: AlertTriangle }
-    } else if (item.current_stock <= item.reorder_point) {
+    } else if (currentStock <= reorderPoint) {
       return { status: 'low', color: 'text-yellow-600 bg-yellow-100', icon: TrendingDown }
     } else {
       return { status: 'normal', color: 'text-green-600 bg-green-100', icon: TrendingUp }
@@ -189,6 +191,9 @@ const Dashboard = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredInventory.map((item) => {
+                const currentStock = Number(item.current_stock ?? 0)
+                const minStock = Number(item.safety_stock ?? 0)
+                const reorderPoint = Number(item.reorder_point ?? 0)
                 const stockStatus = getStockStatus(item)
                 const StatusIcon = stockStatus.icon
                 
@@ -208,9 +213,9 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{item.current_stock}</div>
-                      <div className="text-sm text-gray-500">Min: {item.min_stock}</div>
-                      <div className="text-sm text-gray-500">Max: {item.max_stock}</div>
+                      <div className="text-sm text-gray-900">Current: {currentStock.toLocaleString()}</div>
+                      <div className="text-sm text-gray-500">Min (Safety): {minStock.toLocaleString()}</div>
+                      <div className="text-sm text-gray-500">Reorder: {reorderPoint.toLocaleString()}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.warehouse_name || 'No Warehouse'}

@@ -1,4 +1,20 @@
 // Real Database Purchase Order Controller
+const normalizeRole = (role) => {
+  if (!role) return role;
+
+  const normalized = String(role).trim();
+  const lower = normalized.toLowerCase();
+
+  if (["admin", "administrator"].includes(lower)) return "Admin";
+  if (["inventory manager", "inventory_manager", "inventorymanager"].includes(lower)) {
+    return "Inventory Manager";
+  }
+  if (["warehouse staff", "warehouse_staff", "warehousestaff", "staff"].includes(lower)) {
+    return "Warehouse Staff";
+  }
+
+  return normalized;
+};
 export const getAllPurchaseOrders = async (req, res) => {
   try {
     console.log('🔍 getAllPurchaseOrders called at:', new Date().toISOString());
@@ -12,6 +28,7 @@ export const getAllPurchaseOrders = async (req, res) => {
         po.created_at,
         po.approved_at,
         po.expected_delivery_date,
+        po.pr_id,
         s.name as supplier_name,
         po.supplier_id,
         COALESCE(SUM(poi.quantity), 0)::int as total_quantity,
@@ -20,7 +37,7 @@ export const getAllPurchaseOrders = async (req, res) => {
       FROM purchase_orders po
       LEFT JOIN suppliers s ON s.id = po.supplier_id
       LEFT JOIN purchase_order_items poi ON poi.po_id = po.id
-      GROUP BY po.id, po.po_number, po.status, po.created_at, po.approved_at, po.expected_delivery_date, s.name, po.supplier_id
+      GROUP BY po.id, po.po_number, po.status, po.created_at, po.approved_at, po.expected_delivery_date, po.pr_id, s.name, po.supplier_id
       ORDER BY po.created_at DESC
     `);
     
@@ -43,7 +60,12 @@ export const createPurchaseOrder = async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    const { supplier_id, supplier_name, items, total_amount } = req.body;
+    // DEBUG: Show all inventory items first
+    const allInventoryItems = await client.query('SELECT * FROM inventory LIMIT 5');
+    console.log('🔍 DEBUG - Sample inventory items:', allInventoryItems.rows);
+    console.log('🔍 DEBUG - Inventory columns:', Object.keys(allInventoryItems.rows[0] || {}));
+    
+    const { supplier_id, supplier_name, items, total_amount, pr_id } = req.body;
     
     console.log('🛒 Creating PO with data:', { supplier_id, supplier_name, items, total_amount });
     
@@ -81,21 +103,28 @@ export const createPurchaseOrder = async (req, res) => {
       supplierId = supplierResult.rows[0].id;
     }
     
-    // Get real user ID for created_by
-    const userResult = await client.query(
-      'SELECT id FROM users WHERE is_active = true LIMIT 1'
-    );
-    
-    if (userResult.rows.length === 0) {
-      throw new Error('No active users found in the system');
-    }
-    
-    const createdById = userResult.rows[0].id;
+    const resolveUserId = async () => {
+      if (req.user?.userId) {
+        return req.user.userId;
+      }
+
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE is_active = true LIMIT 1'
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('No active users found in the system');
+      }
+
+      return userResult.rows[0].id;
+    };
+
+    const createdById = await resolveUserId();
     const poResult = await client.query(
-      `INSERT INTO purchase_orders (po_number, supplier_id, status, created_by)
-       VALUES ($1, $2, 'DRAFT', $3)
+      `INSERT INTO purchase_orders (po_number, supplier_id, status, created_by, pr_id)
+       VALUES ($1, $2, 'DRAFT', $3, $4)
        RETURNING *`,
-      [`PO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`, supplierId, createdById]
+      [`PO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`, supplierId, createdById, pr_id || null]
     );
     
     const po = poResult.rows[0];
@@ -107,10 +136,46 @@ export const createPurchaseOrder = async (req, res) => {
         throw new Error(`Invalid item data: id and positive quantity required`);
       }
       
-      // Verify item exists in inventory
+      console.log('🔍 PO Creation - Processing item:', item.id, 'Type:', typeof item.id);
+      
+      let actualItemId = item.id;
+      
+      // If it's not a UUID, assume it's a SKU and look up the UUID from inventory
+      if (item.id && !item.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
+        console.log('🔍 PO Creation - Looking up SKU in inventory:', item.id);
+        
+        // Try SKU lookup first
+        let itemResult = await client.query(
+          'SELECT id, sku, name FROM inventory WHERE sku = $1 LIMIT 1',
+          [item.id]
+        );
+        console.log('🔍 PO Creation - SKU lookup result:', itemResult.rows);
+        
+        if (itemResult.rows.length === 0) {
+          // Try name lookup as fallback
+          console.log('🔍 PO Creation - SKU not found, trying name lookup for:', item.id);
+          itemResult = await client.query(
+            'SELECT id, sku, name FROM inventory WHERE name = $1 LIMIT 1',
+            [item.id]
+          );
+          console.log('🔍 PO Creation - Name lookup result:', itemResult.rows);
+        }
+        
+        if (itemResult.rows.length === 0) {
+          // Show all available items for debugging
+          const allItems = await client.query('SELECT sku, name, id FROM inventory ORDER BY sku');
+          console.log('🔍 PO Creation - ALL available items in inventory:', allItems.rows);
+          throw new Error(`Item not found in inventory: "${item.id}". Available SKUs: ${allItems.rows.map(r => r.sku).filter(s => s).join(', ')}`);
+        }
+        
+        actualItemId = itemResult.rows[0].id;
+        console.log('🎯 PO Creation - Resolved item ID:', actualItemId, 'for item:', itemResult.rows[0]);
+      }
+      
+      // Verify item exists in inventory (now with resolved UUID)
       const itemResult = await client.query(
         'SELECT id, name FROM inventory WHERE id = $1 AND is_active = true',
-        [item.id]
+        [actualItemId]
       );
       
       if (itemResult.rows.length === 0) {
@@ -119,7 +184,7 @@ export const createPurchaseOrder = async (req, res) => {
       
       await client.query(
         'INSERT INTO purchase_order_items (po_id, item_id, quantity, unit_price) VALUES ($1, $2, $3, $4)',
-        [po.id, item.id, item.quantity, item.unit_price || 0]
+        [po.id, actualItemId, item.quantity, item.unit_price || 0]
       );
     }
     
@@ -135,6 +200,7 @@ export const createPurchaseOrder = async (req, res) => {
       created_at: po.created_at,
       approved_at: po.approved_at,
       supplier_id: supplierId,
+      pr_id: po.pr_id,
       total_quantity: items.reduce((sum, item) => sum + (item.quantity || 0), 0),
       total_amount: total_amount || items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unit_price || 0)), 0),
       currency: 'INR'
@@ -230,6 +296,22 @@ export const updatePurchaseOrder = async (req, res) => {
     
     const { id } = req.params;
     const { status } = req.body;
+
+    const resolveUserId = async () => {
+      if (req.user?.userId) {
+        return req.user.userId;
+      }
+
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE is_active = true LIMIT 1'
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('No active users found in the system');
+      }
+
+      return userResult.rows[0].id;
+    };
     
     console.log('🔄 Updating purchase order:', id, 'to status:', status);
     
@@ -246,16 +328,22 @@ export const updatePurchaseOrder = async (req, res) => {
     let updateQuery, updateParams;
     
     if (dbStatus === 'APPROVED') {
-      // For approval, set approved_by to NULL to avoid foreign key constraint
+      const normalizedRole = normalizeRole(req.user?.role);
+      if (normalizedRole !== 'Admin') {
+        return res.status(403).json({ message: 'Only Admin can approve purchase orders' });
+      }
+
+      const approvedBy = await resolveUserId();
+
       updateQuery = `
         UPDATE purchase_orders 
         SET status = $1, 
             approved_at = NOW(),
-            approved_by = NULL
-        WHERE id = $2 
+            approved_by = $2
+        WHERE id = $3 
         RETURNING *
       `;
-      updateParams = [dbStatus, id];
+      updateParams = [dbStatus, approvedBy, id];
     } else {
       // For other status updates
       updateQuery = `

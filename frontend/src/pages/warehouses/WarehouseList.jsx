@@ -9,6 +9,7 @@ const WarehouseList = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingWarehouse, setEditingWarehouse] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -30,11 +31,18 @@ const WarehouseList = () => {
     // Load real data from API
     const loadWarehouses = async () => {
       try {
+        setError('')
         const response = await fetch(`${API_URL}/warehouses`)
         const data = await response.json()
-        setWarehouses(data)
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Failed to load warehouses')
+        }
+
+        setWarehouses(Array.isArray(data) ? data : [])
       } catch (error) {
         console.error('Failed to load warehouses:', error)
+        setError(error.message || 'Failed to load warehouses')
         setWarehouses([])
       } finally {
         setLoading(false)
@@ -205,6 +213,10 @@ const WarehouseList = () => {
             <div className="col-span-full flex items-center justify-center h-64">
               <div className="text-lg text-gray-600">Loading warehouses...</div>
             </div>
+          ) : error ? (
+            <div className="col-span-full flex items-center justify-center h-64">
+              <div className="text-lg text-red-600">{error}</div>
+            </div>
           ) : filteredWarehouses.length === 0 ? (
             <div className="col-span-full flex items-center justify-center h-64">
               <div className="text-lg text-gray-600">No warehouses found</div>
@@ -227,14 +239,49 @@ const WarehouseList = () => {
                   </div>
 
                   <div className="space-y-3 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Package className="w-4 h-4 mr-2" />
-                      {warehouse.item_count || 0} items
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center text-gray-600">
+                        <Package className="w-4 h-4 mr-2" />
+                        {warehouse.total_items || 0} items
+                      </div>
+                      <div className="text-gray-500">
+                        {warehouse.total_stock || 0} units
+                      </div>
                     </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <MapPin className="w-4 h-4 mr-2" />
-                      {warehouse.location_count || 0} locations
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        {warehouse.total_locations || 0} locations
+                      </div>
+                      <div className="text-gray-500">
+                        ${Number(warehouse.total_value || 0).toLocaleString()}
+                      </div>
                     </div>
+
+                    {/* Stock Status */}
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="text-center">
+                        <div className="font-semibold text-red-600">{warehouse.out_of_stock || 0}</div>
+                        <div className="text-gray-500">Out of Stock</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-semibold text-yellow-600">{warehouse.low_stock || 0}</div>
+                        <div className="text-gray-500">Low Stock</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-semibold text-green-600">{warehouse.normal_stock || 0}</div>
+                        <div className="text-gray-500">Normal</div>
+                      </div>
+                    </div>
+
+                    {/* Recent Activity */}
+                    {warehouse.recent_activity > 0 && (
+                      <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        <TrendingUp className="w-3 h-3 mr-1" />
+                        {warehouse.recent_activity} activities this week
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-xs text-gray-500 mb-4">

@@ -49,7 +49,7 @@ const SupplierList = () => {
           country: '',
           postalCode: '',
           website: '',
-          rating: 0,
+          rating: Number(supplier.rating ?? 0),
           status: supplier.is_active ? 'Active' : 'Inactive',
           paymentTerms: '',
           deliveryTerms: '',
@@ -104,7 +104,8 @@ const SupplierList = () => {
             contactPerson: formData.contactPerson,
             email: formData.email,
             phone: formData.phone,
-            leadTimeDays: 0
+            leadTimeDays: 0,
+            rating: formData.rating
           })
         })
         
@@ -135,7 +136,8 @@ const SupplierList = () => {
             contactPerson: formData.contactPerson,
             email: formData.email,
             phone: formData.phone,
-            leadTimeDays: 0
+            leadTimeDays: 0,
+            rating: formData.rating
           })
         })
         
@@ -164,7 +166,7 @@ const SupplierList = () => {
           country: '',
           postalCode: '',
           website: '',
-          rating: 0,
+          rating: Number(newSupplier.rating ?? formData.rating ?? 0),
           status: newSupplier.is_active ? 'Active' : 'Inactive',
           paymentTerms: '',
           deliveryTerms: '',

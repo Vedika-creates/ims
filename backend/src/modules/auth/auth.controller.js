@@ -2,6 +2,23 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../../config/db.js";
 
+const normalizeRole = (role) => {
+  if (!role) return role;
+
+  const normalized = String(role).trim();
+  const lower = normalized.toLowerCase();
+
+  if (["admin", "administrator"].includes(lower)) return "Admin";
+  if (["inventory manager", "inventory_manager", "inventorymanager"].includes(lower)) {
+    return "Inventory Manager";
+  }
+  if (["warehouse staff", "warehouse_staff", "warehousestaff", "staff"].includes(lower)) {
+    return "Warehouse Staff";
+  }
+
+  return normalized;
+};
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -22,11 +39,13 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    const normalizedRole = normalizeRole(user.role);
+
     const token = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email, 
-        role: user.role 
+      {
+        userId: user.id,
+        email: user.email,
+        role: normalizedRole
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -39,7 +58,7 @@ export const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: normalizedRole
       }
     });
   } catch (error) {
@@ -50,7 +69,8 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role = "STAFF" } = req.body;
+    const { name, email, password, role } = req.body;
+    const normalizedRole = normalizeRole(role || "Warehouse Staff");
 
     // Check if user already exists
     const existingUser = await pool.query(
@@ -69,10 +89,13 @@ export const register = async (req, res) => {
     // Create user
     const result = await pool.query(
       "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at",
-      [name, email, hashedPassword, role]
+      [name, email, hashedPassword, normalizedRole]
     );
 
-    const newUser = result.rows[0];
+    const newUser = {
+      ...result.rows[0],
+      role: normalizedRole
+    };
 
     res.status(201).json({
       message: "User created successfully",

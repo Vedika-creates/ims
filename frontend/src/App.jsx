@@ -20,6 +20,10 @@ import WarehouseDetails from './pages/warehouses/WarehouseDetails'
 import StockLocations from './pages/warehouses/StockLocations'
 import TransferOrders from './pages/warehouses/TransferOrders'
 
+// Transfer Orders Module
+import TransferOrdersList from './pages/transfers/TransferOrdersList'
+import TransferOrderDetails from './pages/transfers/TransferOrderDetails'
+
 // Goods Receipt & Putaway Module
 import GRNList from './pages/grn/GRNList'
 import CreateGRN from './pages/grn/CreateGRN'
@@ -71,6 +75,10 @@ function App() {
           <Route path="warehouses/:id" element={<WarehouseDetails />} />
           <Route path="warehouses/:id/locations" element={<StockLocations />} />
           <Route path="transfers" element={<TransferOrders />} />
+          
+          {/* Transfer Orders Module */}
+          <Route path="transfer-orders" element={<TransferOrdersList />} />
+          <Route path="transfer-orders/:id" element={<TransferOrderDetails />} />
           
           {/* Goods Receipt & Putaway Module */}
           <Route path="grn" element={<GRNList />} />

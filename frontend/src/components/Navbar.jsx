@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Package, LogOut, User, ChevronDown, Box, ShoppingCart, BarChart3, Settings, Truck, FileText } from 'lucide-react'
+import { Package, LogOut, User, ChevronDown, Box, ShoppingCart, BarChart3, Settings, Truck, FileText, ArrowRight } from 'lucide-react'
 
 const Navbar = () => {
   const { user, logout } = useAuth()
@@ -33,6 +33,11 @@ const Navbar = () => {
       name: 'Warehouses',
       path: '/warehouses',
       icon: <Truck className="w-4 h-4" />
+    },
+    {
+      name: 'Transfers',
+      path: '/transfer-orders',
+      icon: <ArrowRight className="w-4 h-4" />
     },
     {
       name: 'Purchasing',

@@ -2,61 +2,65 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Warehouse, ArrowLeft, MapPin, Package, Users, TrendingUp, AlertTriangle, Edit } from 'lucide-react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
 const WarehouseDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [warehouse, setWarehouse] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [locations, setLocations] = useState([])
   const [recentActivity, setRecentActivity] = useState([])
 
   useEffect(() => {
-    // Mock data - replace with API call
-    const mockWarehouse = {
-      id: parseInt(id),
-      name: 'Warehouse A',
-      code: 'WH-A',
-      address: '123 Industrial Blvd',
-      city: 'New York',
-      state: 'NY',
-      country: 'USA',
-      postalCode: '10001',
-      manager: 'John Smith',
-      contact: 'John Smith',
-      email: 'john.smith@company.com',
-      phone: '+1-555-0101',
-      capacity: 10000,
-      utilized: 7500,
-      status: 'Active',
-      totalItems: 1250,
-      lowStockItems: 15,
-      totalValue: 2500000,
-      createdAt: '2023-01-15T09:00:00Z',
-      lastUpdated: '2024-01-14T10:30:00Z'
+    const loadWarehouseData = async () => {
+      try {
+        // Load warehouse details
+        const warehouseResponse = await fetch(`${API_URL}/warehouses/${id}`)
+        if (warehouseResponse.ok) {
+          const warehouseData = await warehouseResponse.json()
+          setWarehouse(warehouseData)
+        } else {
+          throw new Error('Failed to load warehouse')
+        }
+
+        // Load warehouse locations
+        const locationsResponse = await fetch(`${API_URL}/warehouses/${id}/locations`)
+        if (locationsResponse.ok) {
+          const locationsData = await locationsResponse.json()
+          setLocations(locationsData)
+        }
+
+        // Load recent activity (you might need to create this endpoint)
+        // For now, we'll keep it empty or you can mock it
+        setRecentActivity([])
+      } catch (error) {
+        console.error('Failed to load warehouse data:', error)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    const mockLocations = [
-      { id: 1, aisle: 'A', bay: '01', level: '01', capacity: 100, utilized: 85, items: 45 },
-      { id: 2, aisle: 'A', bay: '01', level: '02', capacity: 100, utilized: 90, items: 52 },
-      { id: 3, aisle: 'A', bay: '02', level: '01', capacity: 100, utilized: 70, items: 38 },
-      { id: 4, aisle: 'B', bay: '01', level: '01', capacity: 100, utilized: 95, items: 67 },
-      { id: 5, aisle: 'B', bay: '02', level: '01', capacity: 100, utilized: 60, items: 28 }
-    ]
-
-    const mockActivity = [
-      { id: 1, date: '2024-01-14T10:30:00Z', type: 'GRN', reference: 'GRN-001', description: 'Received 50 units of Laptop Dell Latitude', user: 'John Smith' },
-      { id: 2, date: '2024-01-14T09:15:00Z', type: 'Transfer', reference: 'TO-001', description: 'Transferred 10 units to Warehouse B', user: 'Jane Doe' },
-      { id: 3, date: '2024-01-13T16:45:00Z', type: 'Stock Adjustment', reference: 'ADJ-001', description: 'Adjusted stock levels for A4 Paper', user: 'Mike Johnson' },
-      { id: 4, date: '2024-01-13T14:20:00Z', type: 'Pick', reference: 'SO-001', description: 'Picked 5 units for customer order', user: 'Sarah Wilson' }
-    ]
-
-    setWarehouse(mockWarehouse)
-    setLocations(mockLocations)
-    setRecentActivity(mockActivity)
+    if (id) {
+      loadWarehouseData()
+    }
   }, [id])
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading warehouse details...</div>
+      </div>
+    )
+  }
+
   if (!warehouse) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Warehouse not found</div>
+      </div>
+    )
   }
 
   const utilizationPercentage = Math.round((warehouse.utilized / warehouse.capacity) * 100)
@@ -107,30 +111,30 @@ const WarehouseDetails = () => {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{warehouse.totalItems}</div>
+                <div className="text-2xl font-bold text-gray-900">{warehouse.total_items || 0}</div>
                 <div className="text-sm text-gray-500">Total Items</div>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-2">
                   <AlertTriangle className="w-5 h-5 text-yellow-500" />
                   <span className="text-lg font-semibold text-yellow-700">
-                    {warehouse.lowStockItems}
+                    {warehouse.low_stock || 0}
                   </span>
                 </div>
                 <div className="text-sm text-gray-500">Low Stock Items</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">${warehouse.totalValue.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-gray-900">${Number(warehouse.total_value || 0).toLocaleString()}</div>
                 <div className="text-sm text-gray-500">Total Value</div>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-2">
-                  <TrendingUp className={`w-5 h-5 text-${utilizationColor}-500`} />
-                  <span className={`text-lg font-semibold text-${utilizationColor}-700`}>
-                    {utilizationPercentage}%
+                  <Package className="w-5 h-5 text-blue-500" />
+                  <span className="text-lg font-semibold text-blue-700">
+                    {warehouse.total_stock || 0}
                   </span>
                 </div>
-                <div className="text-sm text-gray-500">Space Utilization</div>
+                <div className="text-sm text-gray-500">Total Units</div>
               </div>
             </div>
           </div>

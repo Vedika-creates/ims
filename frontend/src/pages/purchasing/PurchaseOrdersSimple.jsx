@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShoppingCart, Plus, Search, Eye, Edit, CheckCircle, Clock, Package, Calendar, User, FileText, DollarSign, XCircle, X } from 'lucide-react'
+import { ShoppingCart, Plus, Search, Eye, Edit, CheckCircle, Clock, Package, Calendar, User, FileText, DollarSign, XCircle, X, Filter, Trash2 } from 'lucide-react'
 import { api } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const PurchaseOrdersSimple = () => {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role?.toLowerCase() === 'admin'
+  const isInventoryManager = user?.role === 'Inventory Manager'
   const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [requisitions, setRequisitions] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('all')
+  const [activeTab, setActiveTab] = useState('orders')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingPO, setEditingPO] = useState(null)
@@ -34,6 +40,7 @@ const PurchaseOrdersSimple = () => {
 
   useEffect(() => {
     loadPurchaseOrders()
+    loadRequisitions()
     loadSuppliers()
     loadItems()
     generatePONumber()
@@ -52,6 +59,67 @@ const PurchaseOrdersSimple = () => {
       setPurchaseOrders(response.data)
     } catch (error) {
       console.error('Failed to load purchase orders:', error)
+    }
+  }
+
+  const handleApproveRequisition = async (reqId) => {
+    if (!isInventoryManager && !isAdmin) {
+      alert('Only Inventory Managers can approve requisitions')
+      return
+    }
+
+    try {
+      await api.put(`/purchase-requisitions/${reqId}/approve`)
+      setRequisitions(prev => prev.map(req =>
+        req.id === reqId ? { ...req, status: 'INWARD_APPROVED', approved_at: new Date().toISOString() } : req
+      ))
+      alert('Requisition approved successfully')
+    } catch (error) {
+      console.error('Failed to approve requisition:', error)
+      alert('Failed to approve requisition')
+    }
+  }
+
+  const handleRejectRequisition = async (reqId) => {
+    if (!isInventoryManager && !isAdmin) {
+      alert('Only Inventory Managers can reject requisitions')
+      return
+    }
+
+    const reason = prompt('Please enter the reason for rejection:')
+    if (!reason) return
+
+    try {
+      await api.put(`/purchase-requisitions/${reqId}/reject`, { reason })
+      setRequisitions(prev => prev.map(req =>
+        req.id === reqId ? { ...req, status: 'REJECTED', rejection_reason: reason } : req
+      ))
+      alert('Requisition rejected successfully')
+    } catch (error) {
+      console.error('Failed to reject requisition:', error)
+      alert('Failed to reject requisition')
+    }
+  }
+
+  const handleDeleteRequisition = async (reqId) => {
+    if (!window.confirm('Are you sure you want to delete this requisition?')) return
+
+    try {
+      await api.delete(`/purchase-requisitions/${reqId}`)
+      setRequisitions(prev => prev.filter(req => req.id !== reqId))
+      alert('Requisition deleted successfully')
+    } catch (error) {
+      console.error('Failed to delete requisition:', error)
+      alert('Failed to delete requisition')
+    }
+  }
+
+  const loadRequisitions = async () => {
+    try {
+      const response = await api.get('/purchase-requisitions')
+      setRequisitions(response.data)
+    } catch (error) {
+      console.error('Failed to load purchase requisitions:', error)
     }
   }
 
@@ -169,6 +237,11 @@ const PurchaseOrdersSimple = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
+    if (!isAdmin && editFormData.status === 'APPROVED') {
+      alert('Only Admin can approve purchase orders')
+      return
+    }
+
     try {
       const response = await api.put(`/purchase-orders/${editingPO.id}`, editFormData)
       
@@ -197,6 +270,11 @@ const PurchaseOrdersSimple = () => {
   }
 
   const handleApprove = async (poId) => {
+    if (!isAdmin) {
+      alert('Only Admin can approve purchase orders')
+      return
+    }
+
     if (window.confirm('Are you sure you want to approve this Purchase Order?')) {
       try {
         const response = await api.put(`/purchase-orders/${poId}`, { status: 'APPROVED' })
@@ -268,115 +346,223 @@ const PurchaseOrdersSimple = () => {
 
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center space-x-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search purchase orders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 input-field"
-              />
-            </div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="input-field"
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
             >
-              <option value="all">All Status</option>
-              <option value="DRAFT">Draft</option>
-              <option value="APPROVED">Approved</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+              Purchase Orders
+            </button>
+            <button
+              onClick={() => setActiveTab('requisitions')}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${
+                activeTab === 'requisitions' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Purchase Requisitions
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PO Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Expected Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount (₹)
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPOs.map((po) => (
-                <tr key={po.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{po.po_number}</div>
-                    <div className="text-sm text-gray-500">Created: {new Date(po.created_at).toLocaleDateString()}</div>
-                    {po.approved_at && (
-                      <div className="text-xs text-gray-400">Approved: {new Date(po.approved_at).toLocaleDateString()}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{new Date(po.created_at).toLocaleDateString()}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {po.expected_delivery_date 
-                        ? new Date(po.expected_delivery_date).toLocaleDateString()
-                        : 'Not Set'
-                      }
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">₹{po.total_amount.toLocaleString('en-IN')}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(po.status)}`}>
-                      {getStatusIcon(po.status)}
-                      <span className="ml-1">{po.status}</span>
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button
-                        onClick={() => handleViewDetails(po)}
-                        className="text-blue-600 hover:text-blue-900"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(po)}
-                        className="text-green-600 hover:text-green-900"
-                        title="Edit PO"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      {po.status === 'DRAFT' && (
-                        <button
-                          onClick={() => handleApprove(po.id)}
-                          className="text-purple-600 hover:text-purple-900"
-                          title="Approve PO"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                      )}
-                                          </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {activeTab === 'requisitions' && (
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PR Number</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {requisitions.length > 0 ? (
+                    requisitions.map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {req.pr_number}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {req.status}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {req.items?.length || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(req.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => navigate('/purchasing/requisitions')}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Requisitions"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {req.status === 'PENDING' && (isInventoryManager || isAdmin) && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveRequisition(req.id)}
+                                  className="text-green-600 hover:text-green-900"
+                                  title="Approve Requisition"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleRejectRequisition(req.id)}
+                                  className="text-red-600 hover:text-red-900"
+                                  title="Reject Requisition"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteRequisition(req.id)}
+                              className="text-gray-600 hover:text-red-600"
+                              title="Delete Requisition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                        No requisitions found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'orders' && (
+          <>
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center space-x-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search purchase orders..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 input-field"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Filter className="w-5 h-5 text-gray-400" />
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      PO Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Order Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Expected Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount (₹)
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredPOs.map((po) => (
+                    <tr key={po.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{po.po_number}</div>
+                        <div className="text-sm text-gray-500">Created: {new Date(po.created_at).toLocaleDateString()}</div>
+                        {po.approved_at && (
+                          <div className="text-xs text-gray-400">Approved: {new Date(po.approved_at).toLocaleDateString()}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{new Date(po.created_at).toLocaleDateString()}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {po.expected_delivery_date 
+                            ? new Date(po.expected_delivery_date).toLocaleDateString()
+                            : 'Not Set'
+                          }
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">₹{po.total_amount.toLocaleString('en-IN')}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(po.status)}`}>
+                          {getStatusIcon(po.status)}
+                          <span className="ml-1">{po.status}</span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => handleViewDetails(po)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(po)}
+                            className="text-green-600 hover:text-green-900"
+                            title="Edit PO"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          {po.status === 'DRAFT' && isAdmin && (
+                            <button
+                              onClick={() => handleApprove(po.id)}
+                              className="text-purple-600 hover:text-purple-900"
+                              title="Approve PO"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {showCreateModal && (
@@ -639,7 +825,7 @@ const PurchaseOrdersSimple = () => {
                     className="mt-1 input-field w-full"
                   >
                     <option value="DRAFT">Draft</option>
-                    <option value="APPROVED">Approved</option>
+                    {isAdmin && <option value="APPROVED">Approved</option>}
                     <option value="CANCELLED">Cancelled</option>
                   </select>
                 </div>

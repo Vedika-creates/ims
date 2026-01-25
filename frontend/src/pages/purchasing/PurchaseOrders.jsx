@@ -10,6 +10,7 @@ const PurchaseOrders = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedPO, setSelectedPO] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('all') // 'all', 'approved', 'requisitions'
 
   useEffect(() => {
     fetchData()
@@ -18,22 +19,41 @@ const PurchaseOrders = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
+      
+      // Fetch actual purchase orders from backend
+      const poResponse = await api.get('/purchase-orders')
+      const actualPOs = poResponse.data.map(po => ({
+        id: po.id,
+        poNumber: po.po_number,
+        prNumber: po.pr_id ? `PR-${po.pr_id}` : null,
+        supplier: po.supplier_name,
+        orderDate: new Date(po.created_at).toLocaleDateString(),
+        expectedDate: po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        deliveryDate: null,
+        status: po.status === 'APPROVED' ? 'Approved' : po.status === 'DRAFT' ? 'Draft' : po.status,
+        approvedBy: po.approved_by || 'System',
+        approvedDate: po.approved_at ? new Date(po.approved_at).toLocaleDateString() : null,
+        totalAmount: po.total_amount || 0,
+        currency: po.currency || 'INR',
+        paymentTerms: 'Net 30',
+        deliveryTerms: 'FOB',
+        items: [] // Will be populated separately if needed
+      }))
+      
       // Fetch approved requisitions
       const reqResponse = await api.get('/purchase-requisitions')
-      const approved = reqResponse.data.filter(req => req.status === 'approved')
-      setApprovedRequisitions(approved)
+      const approved = reqResponse.data.filter(req => req.status === 'INWARD_APPROVED' || req.status === 'approved')
       
-      // TODO: Fetch actual purchase orders when PO endpoint is ready
-      // For now, convert approved requisitions to PO format
+      // Convert approved requisitions to PO format for display
       const convertedPOs = approved.map(req => ({
-        id: req.id,
+        id: `req-${req.id}`,
         poNumber: `PO-${req.pr_number || 'AUTO'}`,
         prNumber: req.pr_number,
         supplier: 'Auto-generated from PR',
         orderDate: new Date(req.created_at).toLocaleDateString(),
-        expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(), // 7 days from now
+        expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
         deliveryDate: null,
-        status: 'Pending',
+        status: 'Approved',
         approvedBy: 'System',
         approvedDate: new Date(req.approved_at || req.created_at).toLocaleDateString(),
         totalAmount: req.items?.reduce((sum, item) => sum + (item.total || 0), 0) || 0,
@@ -48,10 +68,12 @@ const PurchaseOrders = () => {
           total: item.total || 0,
           received: 0,
           remaining: item.quantity
-        })) || []
+        })) || [],
+        isFromRequisition: true
       }))
       
-      setPurchaseOrders(convertedPOs)
+      setPurchaseOrders(actualPOs)
+      setApprovedRequisitions(convertedPOs)
     } catch (error) {
       console.error('Error fetching purchase orders:', error)
     } finally {
@@ -59,13 +81,27 @@ const PurchaseOrders = () => {
     }
   }
 
-  const filteredPOs = purchaseOrders.filter(po => {
-    const matchesSearch = po.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         po.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         po.prNumber.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = selectedStatus === 'all' || po.status === selectedStatus
-    return matchesSearch && matchesStatus
-  })
+  const getFilteredData = () => {
+    let data = []
+    
+    if (activeTab === 'all') {
+      data = [...purchaseOrders, ...approvedRequisitions]
+    } else if (activeTab === 'approved') {
+      data = [...purchaseOrders.filter(po => po.status === 'Approved'), ...approvedRequisitions]
+    } else if (activeTab === 'requisitions') {
+      data = approvedRequisitions
+    }
+    
+    return data.filter(po => {
+      const matchesSearch = po.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           po.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (po.prNumber && po.prNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+      const matchesStatus = selectedStatus === 'all' || po.status === selectedStatus
+      return matchesSearch && matchesStatus
+    })
+  }
+
+  const filteredPOs = getFilteredData()
 
   const handleViewDetails = (po) => {
     setSelectedPO(po)
@@ -113,11 +149,15 @@ const PurchaseOrders = () => {
     }
   }
 
-  const handleReceive = (poId) => {
+  const handleReceive = (po) => {
     // Navigate to GRN creation with PO reference
-    const po = purchaseOrders.find(p => p.id === poId)
     if (po) {
-      window.location.href = `/grn/create?po=${po.poNumber}`
+      const poData = {
+        po_number: po.poNumber,
+        supplier_name: po.supplier,
+        items: po.items || []
+      }
+      window.location.href = `/grn/create?po=${encodeURIComponent(po.poNumber)}`
     }
   }
 
@@ -172,6 +212,54 @@ const PurchaseOrders = () => {
         </div>
 
         <div className="px-6 py-4 border-b border-gray-200">
+          {/* Tabs */}
+          <div className="mb-4">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                <button
+                  onClick={() => {
+                    console.log('Setting active tab to all');
+                    setActiveTab('all');
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'all'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  All Orders
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('Setting active tab to approved');
+                    setActiveTab('approved');
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'approved'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Approved Only
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('Setting active tab to requisitions');
+                    setActiveTab('requisitions');
+                  }}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'requisitions'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  From Requisitions
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          {/* Search and Filter */}
           <div className="flex items-center space-x-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -180,13 +268,13 @@ const PurchaseOrders = () => {
                 placeholder="Search purchase orders..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 input-field"
+                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             </div>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="input-field"
+              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
               <option value="all">All Status</option>
               <option value="Pending">Pending</option>
@@ -195,8 +283,8 @@ const PurchaseOrders = () => {
               <option value="Received">Received</option>
               <option value="Cancelled">Cancelled</option>
             </select>
-            <button className="btn btn-secondary flex items-center space-x-2">
-              <Filter className="w-4 h-4" />
+            <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              <Filter className="w-4 h-4 mr-2" />
               <span>Filter</span>
             </button>
           </div>
@@ -238,8 +326,11 @@ const PurchaseOrders = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{po.poNumber}</div>
-                        <div className="text-sm text-gray-500">PR: {po.prNumber}</div>
-                        <div className="text-xs text-gray-400">{po.items.length} items</div>
+                        {po.prNumber && <div className="text-sm text-gray-500">PR: {po.prNumber}</div>}
+                        {po.isFromRequisition && (
+                          <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">From Requisition</div>
+                        )}
+                        <div className="text-xs text-gray-400">{po.items?.length || 0} items</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -299,9 +390,9 @@ const PurchaseOrders = () => {
                         )}
                         {(po.status === 'Approved' || po.status === 'Partially Received') && (
                           <button
-                            onClick={() => handleReceive(po.id)}
+                            onClick={() => handleReceive(po)}
                             className="text-blue-600 hover:text-blue-900"
-                            title="Receive Goods"
+                            title="Create GRN"
                           >
                             <Truck className="w-4 h-4" />
                           </button>
@@ -450,11 +541,11 @@ const PurchaseOrders = () => {
                 </button>
                 {(selectedPO.status === 'Approved' || selectedPO.status === 'Partially Received') && (
                   <button
-                    onClick={() => handleReceive(selectedPO.id)}
+                    onClick={() => handleReceive(selectedPO)}
                     className="btn btn-primary flex items-center space-x-2"
                   >
                     <Truck className="w-4 h-4" />
-                    <span>Receive Goods</span>
+                    <span>Create GRN</span>
                   </button>
                 )}
               </div>

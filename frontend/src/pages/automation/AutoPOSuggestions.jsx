@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { ShoppingCart, Plus, Search, Filter, Eye, CheckCircle, Clock, TrendingUp, Calculator, Package, AlertTriangle } from 'lucide-react'
+import axios from 'axios'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const AutoPOSuggestions = () => {
   const [suggestions, setSuggestions] = useState([])
@@ -8,111 +11,57 @@ const AutoPOSuggestions = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(null)
 
-  useEffect(() => {
-    // Mock data - replace with API call
-    const mockSuggestions = [
-      {
-        id: 1,
-        itemName: 'Laptop Dell Latitude',
-        sku: 'LAP-001',
-        supplier: 'Tech Supplies Inc',
-        currentStock: 25,
-        reorderPoint: 15,
-        safetyStock: 10,
-        avgMonthlyDemand: 45,
-        leadTime: 14,
-        suggestedQuantity: 50,
-        suggestedDate: '2024-01-15',
-        priority: 'high',
-        status: 'pending',
-        confidence: 95,
-        calculationMethod: 'historical',
-        reasoning: 'Current stock (25) will be depleted in approximately 13 days based on average monthly demand of 45 units. Lead time is 14 days.',
-        totalCost: 40000,
-        unitPrice: 800,
-        lastStockout: '2023-12-20',
-        seasonality: 'normal',
-        created: '2024-01-14T10:30:00Z',
-        expires: '2024-01-17T10:30:00Z'
-      },
-      {
-        id: 2,
-        itemName: 'A4 Paper Pack',
-        sku: 'PAP-002',
-        supplier: 'Office Depot',
-        currentStock: 60,
-        reorderPoint: 75,
-        safetyStock: 50,
-        avgMonthlyDemand: 120,
-        leadTime: 7,
-        suggestedQuantity: 100,
-        suggestedDate: '2024-01-16',
-        priority: 'medium',
-        status: 'pending',
-        confidence: 88,
-        calculationMethod: 'forecast',
-        reasoning: 'Stock will reach reorder point in 5 days. Increased demand expected due to Q1 office supply requirements.',
-        totalCost: 1500,
-        unitPrice: 15,
-        lastStockout: '2023-11-15',
-        seasonality: 'high',
-        created: '2024-01-14T09:15:00Z',
-        expires: '2024-01-17T09:15:00Z'
-      },
-      {
-        id: 3,
-        itemName: 'Steel Rod 10mm',
-        sku: 'RAW-003',
-        supplier: 'Metal Works Ltd',
-        currentStock: 80,
-        reorderPoint: 150,
-        safetyStock: 100,
-        avgMonthlyDemand: 200,
-        leadTime: 21,
-        suggestedQuantity: 500,
-        suggestedDate: '2024-01-15',
-        priority: 'critical',
-        status: 'approved',
-        confidence: 92,
-        calculationMethod: 'abc_analysis',
-        reasoning: 'Critical stock level. Current stock (80) below safety stock (100). Immediate action required to avoid production delays.',
-        totalCost: 2500,
-        unitPrice: 5,
-        lastStockout: '2023-12-01',
-        seasonality: 'normal',
-        created: '2024-01-13T16:45:00Z',
-        approvedAt: '2024-01-14T11:30:00Z',
-        approvedBy: 'Jane Doe',
-        poGenerated: 'PO-2024-018'
-      },
-      {
-        id: 4,
-        itemName: 'Monitor 24 inch',
-        sku: 'MON-002',
-        supplier: 'Tech Supplies Inc',
-        currentStock: 150,
-        reorderPoint: 30,
-        safetyStock: 20,
-        avgMonthlyDemand: 60,
-        leadTime: 14,
-        suggestedQuantity: 0,
-        suggestedDate: null,
-        priority: 'low',
-        status: 'rejected',
-        confidence: 75,
-        calculationMethod: 'static',
-        reasoning: 'Current stock (150) significantly above maximum levels (100). No reorder recommended at this time.',
-        totalCost: 0,
-        unitPrice: 300,
-        lastStockout: null,
-        seasonality: 'low',
-        created: '2024-01-12T14:20:00Z',
-        rejectedAt: '2024-01-12T16:30:00Z',
-        rejectedBy: 'John Smith',
-        rejectionReason: 'Overstock situation - will consider reorder in 2 months'
+  const [loading, setLoading] = useState(false)
+  const [autoCreatedPRs, setAutoCreatedPRs] = useState([])
+
+  // Fetch suggestions on component mount
+  const fetchSuggestions = async () => {
+    try {
+      setLoading(true)
+      const response = await axios.post(`${API_URL}/purchase-requisitions/run-auto-suggestions`, {
+        auto_create_critical: false
+      })
+      
+      if (response.data.success) {
+        setSuggestions(response.data.suggestions)
+        setAutoCreatedPRs([])
       }
-    ]
-    setSuggestions(mockSuggestions)
+    } catch (error) {
+      console.error('Error fetching suggestions:', error)
+      // Fallback to empty array if API fails
+      setSuggestions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Run suggestions with auto-creation for critical stock
+  const runSuggestions = async () => {
+    try {
+      setLoading(true)
+      const response = await axios.post(`${API_URL}/purchase-requisitions/run-auto-suggestions`, {
+        auto_create_critical: true
+      })
+      
+      if (response.data.success) {
+        setSuggestions(response.data.suggestions)
+        setAutoCreatedPRs(response.data.auto_created_prs || [])
+        
+        // Show success message for auto-created PRs
+        if (response.data.auto_created_prs?.length > 0) {
+          alert(`Auto-created ${response.data.auto_created_prs.length} PRs for critical stock items`)
+        }
+      }
+    } catch (error) {
+      console.error('Error running suggestions:', error)
+      alert('Error running suggestions: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSuggestions()
   }, [])
 
   const filteredSuggestions = suggestions.filter(suggestion => {
@@ -158,11 +107,30 @@ const AutoPOSuggestions = () => {
     }
   }
 
-  const handleGeneratePO = (suggestionId) => {
-    const suggestion = suggestions.find(s => s.id === suggestionId)
-    if (suggestion) {
-      // In a real app, this would navigate to PO creation with pre-filled data
-      alert(`Generating PO for ${suggestion.itemName} - Quantity: ${suggestion.suggestedQuantity}`)
+  // Create PR manually for a suggestion
+  const createPR = async (suggestion) => {
+    try {
+      const response = await axios.post(`${API_URL}/purchase-requisitions`, {
+        requestedBy: 'Current User',
+        items: [{
+          id: suggestion.itemId,
+          quantity: suggestion.suggestedQuantity,
+          unitPrice: suggestion.unitPrice
+        }]
+      })
+      
+      if (response.data) {
+        // Update the suggestion status to show PR was created
+        setSuggestions(prev => prev.map(s =>
+          s.id === suggestion.id
+            ? { ...s, status: 'pr_created', prNumber: response.data.prNumber }
+            : s
+        ))
+        alert(`PR ${response.data.prNumber} created successfully for ${suggestion.itemName}`)
+      }
+    } catch (error) {
+      console.error('Error creating PR:', error)
+      alert('Error creating PR: ' + (error.response?.data?.error || error.message))
     }
   }
 
@@ -179,6 +147,7 @@ const AutoPOSuggestions = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'pr_created': return 'bg-blue-100 text-blue-800'
       case 'approved': return 'bg-green-100 text-green-800'
       case 'rejected': return 'bg-red-100 text-red-800'
       case 'expired': return 'bg-gray-100 text-gray-800'
@@ -211,9 +180,30 @@ const AutoPOSuggestions = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={runSuggestions}
+                disabled={loading}
+                className="btn btn-primary flex items-center space-x-2"
+              >
+                <Play className="w-4 h-4" />
+                <span>{loading ? 'Running...' : 'Run Suggestions'}</span>
+              </button>
+              <button
+                onClick={fetchSuggestions}
+                disabled={loading}
+                className="btn btn-secondary flex items-center space-x-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Refresh</span>
+              </button>
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
                 {suggestions.filter(s => s.status === 'pending').length} Pending Review
               </span>
+              {autoCreatedPRs.length > 0 && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  {autoCreatedPRs.length} PRs Auto-Created
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -349,18 +339,32 @@ const AutoPOSuggestions = () => {
                         {suggestion.status === 'pending' && (
                           <>
                             <button
+                              onClick={() => createPR(suggestion)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Create PR"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleApprove(suggestion.id)}
                               className="text-green-600 hover:text-green-900"
+                              title="Approve"
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleReject(suggestion.id)}
                               className="text-red-600 hover:text-red-900"
+                              title="Reject"
                             >
                               <Clock className="w-4 h-4" />
                             </button>
                           </>
+                        )}
+                        {suggestion.status === 'pr_created' && (
+                          <span className="text-xs text-green-600 font-medium">
+                            PR: {suggestion.prNumber}
+                          </span>
                         )}
                         {suggestion.status === 'approved' && !suggestion.poGenerated && (
                           <button

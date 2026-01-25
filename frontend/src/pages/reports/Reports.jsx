@@ -68,6 +68,14 @@ const Reports = () => {
       const approvedOrders = orders.filter(po => po.status === 'APPROVED').length
       const pendingOrders = orders.filter(po => po.status === 'DRAFT').length
 
+      // More flexible out of stock detection
+      const outOfStockItems = inventory.filter(item => {
+        const stock = item.current_stock
+        return stock === 0 || stock === "0" || stock === null || stock === undefined || stock === ""
+      }).length
+      
+      console.log('🔍 DEBUG - Out of stock count:', outOfStockItems)
+
       setReports(prev => ({
         ...prev,
         overview: {
@@ -77,8 +85,7 @@ const Reports = () => {
           totalOrders: totalOrders,
           approvedOrders: approvedOrders,
           pendingOrders: pendingOrders,
-          lowStockItems: inventory.filter(item => item.current_stock <= item.reorder_point).length,
-          outOfStockItems: inventory.filter(item => item.current_stock === 0).length
+          lowStockItems: inventory.filter(item => item.current_stock <= item.reorder_point).length
         }
       }))
     } catch (error) {
@@ -297,16 +304,6 @@ const Reports = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500">Low Stock Items</p>
               <p className="text-2xl font-bold text-red-600">{overview.lowStockItems}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Out of Stock Items</p>
-              <p className="text-2xl font-bold text-red-600">{overview.outOfStockItems}</p>
             </div>
           </div>
         </div>

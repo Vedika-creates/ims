@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Save, X } from 'lucide-react'
 import { inventoryService } from '../../services/inventoryService'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const AddItem = () => {
   const navigate = useNavigate()
@@ -21,7 +23,7 @@ const AddItem = () => {
       warehouse_id: null,
       location: '',
       is_batch_tracked: false,
-      serial_tracking: false,
+      serialTracking: false,
       is_expiry_tracked: false,
       status: 'Active'
     }
@@ -34,16 +36,45 @@ const AddItem = () => {
     }
   })
 
-  const categories = useMemo(
-    () => ['Electronics', 'Raw Materials', 'Consumables', 'Tools', 'Equipment', 'Office Supplies'],
-    []
-  )
-  const warehouses = useMemo(() => ['Warehouse A', 'Warehouse B', 'Warehouse C'], [])
-  const suppliers = useMemo(() => ['Supplier A', 'Supplier B', 'Supplier C'], [])
+  const [categories, setCategories] = useState([])
+  const [warehouses, setWarehouses] = useState([])
+  const [suppliers, setSuppliers] = useState([])
+  const [metaError, setMetaError] = useState('')
 
   useEffect(() => {
     localStorage.setItem('newItemForm', JSON.stringify(formData))
   }, [formData])
+
+  useEffect(() => {
+    const loadMeta = async () => {
+      try {
+        setMetaError('')
+        const [categoriesRes, suppliersRes, warehousesRes] = await Promise.all([
+          fetch(`${API_URL}/categories`),
+          fetch(`${API_URL}/suppliers`),
+          fetch(`${API_URL}/warehouses`)
+        ])
+
+        const [categoriesData, suppliersData, warehousesData] = await Promise.all([
+          categoriesRes.json(),
+          suppliersRes.json(),
+          warehousesRes.json()
+        ])
+
+        setCategories(Array.isArray(categoriesData) ? categoriesData : [])
+        setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
+        setWarehouses(Array.isArray(warehousesData) ? warehousesData : [])
+      } catch (error) {
+        console.error('Failed to load item metadata:', error)
+        setMetaError('Failed to load categories, suppliers, or warehouses')
+        setCategories([])
+        setSuppliers([])
+        setWarehouses([])
+      }
+    }
+
+    loadMeta()
+  }, [])
 
   const generateCostFromItemName = (itemName) => {
     if (!itemName) return 0
@@ -90,8 +121,8 @@ const AddItem = () => {
       if (name === 'name') {
         const cost = generateCostFromItemName(value)
         updatedData.cost = cost
-        if (!prev.sellingPrice || prev.sellingPrice === prev.cost * 1.2) {
-          updatedData.sellingPrice = cost * 1.2
+        if (!prev.selling_price || prev.selling_price === prev.cost * 1.2) {
+          updatedData.selling_price = cost * 1.2
         }
       }
 
@@ -100,12 +131,16 @@ const AddItem = () => {
   }
 
   const validateForm = () => {
-    const { sku, name, category_id, cost, sellingPrice } = formData
+    const { sku, name, category_id, cost, selling_price, warehouse_id } = formData
     if (!sku || !name || !category_id) {
       alert('Please fill all required fields.')
       return false
     }
-    if (sellingPrice < cost) {
+    if (!warehouse_id) {
+      alert('Please select a warehouse.')
+      return false
+    }
+    if (selling_price < cost) {
       alert('Selling price cannot be less than cost.')
       return false
     }
@@ -198,8 +233,8 @@ const AddItem = () => {
                 >
                   <option value="">Select Category</option>
                   {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
                 </select>
@@ -266,8 +301,8 @@ const AddItem = () => {
                   </label>
                   <input
                     type="number"
-                    name="sellingPrice"
-                    value={formData.sellingPrice}
+                    name="selling_price"
+                    value={formData.selling_price}
                     onChange={handleInputChange}
                     min="0"
                     step="0.01"
@@ -281,17 +316,18 @@ const AddItem = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Location & Supplier</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Warehouse</label>
+                  <label className="block text-sm font-medium text-gray-700">Warehouse *</label>
                   <select
                     name="warehouse_id"
-                    value={formData.warehouse_id}
+                    value={formData.warehouse_id || ''}
                     onChange={handleInputChange}
                     className="mt-1 input-field"
+                    required
                   >
                     <option value="">Select Warehouse</option>
-                    {warehouses.map((warehouse, index) => (
-                      <option key={warehouse} value={index + 1}>
-                        {warehouse}
+                    {warehouses.map((warehouse) => (
+                      <option key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name}
                       </option>
                     ))}
                   </select>
@@ -301,14 +337,14 @@ const AddItem = () => {
                   <label className="block text-sm font-medium text-gray-700">Supplier</label>
                   <select
                     name="supplier_id"
-                    value={formData.supplier_id}
+                    value={formData.supplier_id || ''}
                     onChange={handleInputChange}
                     className="mt-1 input-field"
                   >
                     <option value="">Select Supplier</option>
-                    {suppliers.map((supplier, index) => (
-                      <option key={supplier} value={index + 1}>
-                        {supplier}
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
                       </option>
                     ))}
                   </select>

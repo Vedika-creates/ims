@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Search, Filter, Eye, CheckCircle, XCircle, AlertTriangle, Clock, Mail, Smartphone, Monitor } from 'lucide-react'
+import { api } from '../../services/api'
 
 const Alerts = () => {
   const [alerts, setAlerts] = useState([])
@@ -9,120 +10,51 @@ const Alerts = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedAlert, setSelectedAlert] = useState(null)
 
+  const mapAlert = (alert) => {
+    const metadata = alert.metadata || {}
+
+    return {
+      id: alert.id,
+      type: (alert.alert_type || '').toLowerCase(),
+      title: alert.title || 'Alert',
+      message: alert.message || '',
+      severity: (alert.severity || 'low').toLowerCase(),
+      status: (alert.status || 'active').toLowerCase(),
+      itemName: alert.item_name || null,
+      sku: alert.sku || null,
+      currentStock: alert.current_stock ?? null,
+      reorderPoint: alert.reorder_point ?? null,
+      safetyStock: alert.safety_stock ?? null,
+      warehouse: alert.warehouse_name || null,
+      location: metadata.location || null,
+      triggeredAt: alert.triggered_at,
+      acknowledgedAt: alert.acknowledged_at,
+      acknowledgedBy: alert.acknowledged_by_name || null,
+      resolvedAt: alert.resolved_at,
+      resolvedBy: alert.resolved_by_name || null,
+      actions: metadata.actions || [],
+      notifications: metadata.notifications || []
+    }
+  }
+
+  const fetchAlerts = async () => {
+    const params = {}
+    if (selectedStatus !== 'all') {
+      params.status = selectedStatus.toUpperCase()
+    }
+    if (selectedType !== 'all') {
+      params.type = selectedType.toUpperCase()
+    }
+
+    const response = await api.get('/alerts', { params })
+    setAlerts(response.data.map(mapAlert))
+  }
+
   useEffect(() => {
-    // Mock data - replace with API call
-    const mockAlerts = [
-      {
-        id: 1,
-        type: 'low_stock',
-        title: 'Low Stock Alert: Laptop Dell Latitude',
-        message: 'Current stock (25 units) has fallen below reorder point (15 units)',
-        severity: 'high',
-        status: 'active',
-        itemName: 'Laptop Dell Latitude',
-        sku: 'LAP-001',
-        currentStock: 25,
-        reorderPoint: 15,
-        safetyStock: 10,
-        warehouse: 'Warehouse A',
-        location: 'A-01-01',
-        triggeredAt: '2024-01-14T10:30:00Z',
-        acknowledgedAt: null,
-        acknowledgedBy: null,
-        actions: ['create_po', 'transfer_stock'],
-        notifications: [
-          { type: 'email', sent: true, sentAt: '2024-01-14T10:31:00Z', recipient: 'john.smith@company.com' },
-          { type: 'sms', sent: true, sentAt: '2024-01-14T10:31:30Z', recipient: '+1-555-0101' }
-        ]
-      },
-      {
-        id: 2,
-        type: 'critical_stock',
-        title: 'Critical Stock: Steel Rod 10mm',
-        message: 'Current stock (80 units) has fallen below safety stock level (100 units)',
-        severity: 'critical',
-        status: 'active',
-        itemName: 'Steel Rod 10mm',
-        sku: 'RAW-003',
-        currentStock: 80,
-        reorderPoint: 150,
-        safetyStock: 100,
-        warehouse: 'Warehouse C',
-        location: 'C-03-02',
-        triggeredAt: '2024-01-14T09:15:00Z',
-        acknowledgedAt: null,
-        acknowledgedBy: null,
-        actions: ['urgent_po', 'transfer_stock'],
-        notifications: [
-          { type: 'email', sent: true, sentAt: '2024-01-14T09:16:00Z', recipient: 'mike.johnson@company.com' },
-          { type: 'sms', sent: true, sentAt: '2024-01-14T09:16:30Z', recipient: '+1-555-0103' },
-          { type: 'dashboard', sent: true, sentAt: '2024-01-14T09:15:30Z', recipient: 'all_managers' }
-        ]
-      },
-      {
-        id: 3,
-        type: 'expiry_warning',
-        title: 'Expiry Warning: A4 Paper Pack',
-        message: 'Batch BATCH-004 of A4 Paper Pack expires in 30 days (2025-02-13)',
-        severity: 'medium',
-        status: 'active',
-        itemName: 'A4 Paper Pack',
-        sku: 'PAP-002',
-        batchNumber: 'BATCH-004',
-        expiryDate: '2025-02-13',
-        quantity: 100,
-        warehouse: 'Warehouse B',
-        location: 'B-02-03',
-        triggeredAt: '2024-01-13T14:20:00Z',
-        acknowledgedAt: '2024-01-13T15:30:00Z',
-        acknowledgedBy: 'Jane Doe',
-        actions: ['discount_promotion', 'return_to_supplier'],
-        notifications: [
-          { type: 'email', sent: true, sentAt: '2024-01-13T14:21:00Z', recipient: 'jane.doe@company.com' }
-        ]
-      },
-      {
-        id: 4,
-        type: 'overstock',
-        title: 'Overstock Alert: Monitor 24 inch',
-        message: 'Current stock (150 units) exceeds maximum stock level (100 units)',
-        severity: 'low',
-        status: 'acknowledged',
-        itemName: 'Monitor 24 inch',
-        sku: 'MON-002',
-        currentStock: 150,
-        maxStock: 100,
-        warehouse: 'Warehouse A',
-        location: 'A-02-01',
-        triggeredAt: '2024-01-12T11:45:00Z',
-        acknowledgedAt: '2024-01-12T13:20:00Z',
-        acknowledgedBy: 'John Smith',
-        actions: ['transfer_out', 'cancel_orders'],
-        notifications: [
-          { type: 'email', sent: true, sentAt: '2024-01-12T11:46:00Z', recipient: 'john.smith@company.com' }
-        ]
-      },
-      {
-        id: 5,
-        type: 'system',
-        title: 'System Maintenance Scheduled',
-        message: 'Inventory management system will be under maintenance on 2024-01-20 from 02:00 AM to 04:00 AM EST',
-        severity: 'info',
-        status: 'acknowledged',
-        itemName: null,
-        sku: null,
-        triggeredAt: '2024-01-10T16:30:00Z',
-        acknowledgedAt: '2024-01-10T17:15:00Z',
-        acknowledgedBy: 'System Admin',
-        actions: ['schedule_maintenance'],
-        notifications: [
-          { type: 'email', sent: true, sentAt: '2024-01-10T16:31:00Z', recipient: 'all_users' },
-          { type: 'dashboard', sent: true, sentAt: '2024-01-10T16:30:30Z', recipient: 'all_users' }
-        ]
-      }
-    ]
-    setAlerts(mockAlerts)
-  }, [])
+    fetchAlerts().catch(error => {
+      console.error('Failed to load alerts:', error)
+    })
+  }, [selectedStatus, selectedType])
 
   const filteredAlerts = alerts.filter(alert => {
     const matchesSearch = alert.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,30 +70,24 @@ const Alerts = () => {
     setShowDetailsModal(true)
   }
 
-  const handleAcknowledge = (alertId) => {
-    setAlerts(prev => prev.map(alert =>
-      alert.id === alertId
-        ? { 
-            ...alert, 
-            status: 'acknowledged',
-            acknowledgedAt: new Date().toISOString(),
-            acknowledgedBy: 'Current User'
-          }
-        : alert
-    ))
+  const handleAcknowledge = async (alertId) => {
+    try {
+      const response = await api.put(`/alerts/${alertId}/acknowledge`)
+      const updated = mapAlert(response.data)
+      setAlerts(prev => prev.map(alert => alert.id === alertId ? updated : alert))
+    } catch (error) {
+      console.error('Failed to acknowledge alert:', error)
+    }
   }
 
-  const handleResolve = (alertId) => {
-    setAlerts(prev => prev.map(alert =>
-      alert.id === alertId
-        ? { 
-            ...alert, 
-            status: 'resolved',
-            resolvedAt: new Date().toISOString(),
-            resolvedBy: 'Current User'
-          }
-        : alert
-    ))
+  const handleResolve = async (alertId) => {
+    try {
+      const response = await api.put(`/alerts/${alertId}/resolve`)
+      const updated = mapAlert(response.data)
+      setAlerts(prev => prev.map(alert => alert.id === alertId ? updated : alert))
+    } catch (error) {
+      console.error('Failed to resolve alert:', error)
+    }
   }
 
   const getSeverityIcon = (severity) => {

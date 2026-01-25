@@ -1,6 +1,64 @@
 import { pool } from "../../config/db.js";
 
 /* 1️⃣ GET ALL INVENTORY ITEMS */
+// Helper to generate alerts for low/critical stock
+const generateStockAlerts = async (pool, item, newStock) => {
+  const alerts = [];
+
+  if (newStock <= 0) {
+    alerts.push({
+      alert_type: 'CRITICAL_STOCK',
+      severity: 'CRITICAL',
+      title: `Out of Stock: ${item.name}`,
+      message: `Item ${item.name} (${item.sku}) is out of stock.`,
+      item_id: item.id,
+      metadata: {
+        current_stock: newStock,
+        reorder_point: item.reorder_point,
+        safety_stock: item.safety_stock,
+        location: null
+      }
+    });
+  } else if (newStock <= (item.safety_stock || 0)) {
+    alerts.push({
+      alert_type: 'CRITICAL_STOCK',
+      severity: 'HIGH',
+      title: `Critical Stock: ${item.name}`,
+      message: `Current stock (${newStock}) has fallen below safety stock level (${item.safety_stock}).`,
+      item_id: item.id,
+      metadata: {
+        current_stock: newStock,
+        reorder_point: item.reorder_point,
+        safety_stock: item.safety_stock,
+        location: null
+      }
+    });
+  } else if (newStock <= (item.reorder_point || 0)) {
+    alerts.push({
+      alert_type: 'LOW_STOCK',
+      severity: 'MEDIUM',
+      title: `Low Stock: ${item.name}`,
+      message: `Current stock (${newStock}) has fallen below reorder point (${item.reorder_point}).`,
+      item_id: item.id,
+      metadata: {
+        current_stock: newStock,
+        reorder_point: item.reorder_point,
+        safety_stock: item.safety_stock,
+        location: null
+      }
+    });
+  }
+
+  // Insert alerts
+  for (const alert of alerts) {
+    await pool.query(
+      `INSERT INTO inventory_alerts (alert_type, severity, status, title, message, metadata, item_id)
+       VALUES ($1, $2, 'ACTIVE', $3, $4, $5, $6)`,
+      [alert.alert_type, alert.severity, alert.title, alert.message, JSON.stringify(alert.metadata), alert.item_id]
+    );
+  }
+};
+
 export const getAllInventory = async (req, res) => {
   try {
     const result = await pool.query(`
@@ -11,11 +69,12 @@ export const getAllInventory = async (req, res) => {
         i.description,
         i.category_id,
         i.current_stock,
+        i.opening_stock,
         i.reorder_point,
         i.safety_stock,
         i.is_active,
         i.unit_cost as cost,
-        i.unit_price as sellingPrice,
+        i.unit_price as selling_price,
         i.supplier_id,
         i.warehouse_id,
         c.name as category_name,
@@ -87,18 +146,22 @@ export const createInventory = async (req, res) => {
     serialTracking,
     cost,
     selling_price,
+    sellingPrice,
     supplier_id,
     warehouse_id,
     opening_stock
   } = req.body;
+
+  const effectiveSellingPrice = selling_price ?? sellingPrice ?? 0;
+  const effectiveOpeningStock = opening_stock ?? 0;
 
   console.log('📦 Creating inventory item:', { 
     name, 
     sku, 
     category_id, 
     cost, 
-    selling_price, 
-    opening_stock: opening_stock || 'MISSING',
+    sellingPrice: effectiveSellingPrice,
+    opening_stock: effectiveOpeningStock,
     safety_stock,
     reorder_point 
   });
@@ -108,8 +171,8 @@ export const createInventory = async (req, res) => {
       `INSERT INTO inventory 
        (name, sku, description, category_id,
         lead_time_days, safety_stock, reorder_point,
-        requires_batch_tracking, requires_serial_tracking, has_expiry, is_active, unit_cost, unit_price, supplier_id, warehouse_id, current_stock)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        requires_batch_tracking, requires_serial_tracking, has_expiry, is_active, unit_cost, unit_price, supplier_id, warehouse_id, current_stock, opening_stock)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [
         name,
@@ -124,14 +187,19 @@ export const createInventory = async (req, res) => {
         is_expiry_tracked || false,
         true,
         cost || 0,
-        selling_price || 0,
+        effectiveSellingPrice,
         supplier_id || null,
         warehouse_id || null,
-        opening_stock || 0  // Set current_stock = opening_stock
+        effectiveOpeningStock,
+        effectiveOpeningStock
       ]
     );
     
-    console.log('✅ Item created successfully:', result.rows[0]);
+    console.log('✅ Inventory item created successfully:', result.rows[0]);
+
+    // Generate alerts if stock is low/critical
+    const newItem = result.rows[0];
+    await generateStockAlerts(pool, newItem, newItem.current_stock || 0);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('❌ Error creating inventory item:', err.message);
@@ -155,9 +223,14 @@ export const updateInventory = async (req, res) => {
     serialTracking,
     cost,
     selling_price,
+    sellingPrice,
     supplier_id,
-    warehouse_id
+    warehouse_id,
+    opening_stock
   } = req.body;
+
+  const effectiveSellingPrice = selling_price ?? sellingPrice ?? 0;
+  const effectiveOpeningStock = opening_stock ?? null;
 
   console.log('📝 Updating inventory item:', { 
     id, 
@@ -172,7 +245,9 @@ export const updateInventory = async (req, res) => {
        SET name = $2, sku = $3, description = $4, category_id = $5,
            lead_time_days = $6, safety_stock = $7, reorder_point = $8,
            requires_batch_tracking = $9, requires_serial_tracking = $10, has_expiry = $11,
-           unit_cost = $12, unit_price = $13, supplier_id = $14, warehouse_id = $15
+           unit_cost = $12, unit_price = $13, supplier_id = $14, warehouse_id = $15,
+           opening_stock = CASE WHEN $16 IS NULL THEN opening_stock ELSE $16 END,
+           current_stock = CASE WHEN $16 IS NULL THEN current_stock ELSE $16 END
        WHERE id = $1 AND is_active = true
        RETURNING *`,
       [
@@ -188,9 +263,10 @@ export const updateInventory = async (req, res) => {
         serialTracking || false,
         is_expiry_tracked || false,
         cost || 0,
-        selling_price || 0,
+        effectiveSellingPrice,
         supplier_id || null,
-        warehouse_id || null
+        warehouse_id || null,
+        effectiveOpeningStock
       ]
     );
     
@@ -198,7 +274,11 @@ export const updateInventory = async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
     
-    console.log('✅ Item updated successfully:', result.rows[0]);
+    console.log('✅ Inventory item updated successfully:', result.rows[0]);
+
+    // Generate alerts if stock is low/critical after update
+    const updatedItem = result.rows[0];
+    await generateStockAlerts(pool, updatedItem, updatedItem.current_stock || 0);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('❌ Error updating inventory item:', err.message);
@@ -305,6 +385,12 @@ export const adjustStock = async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [item_id, null, location_id || null, type === 'out' ? 'OUT' : 'IN', Math.abs(adjustmentQuantity), req.user?.id]
     );
+
+    // Generate alerts if stock is low/critical after adjustment
+    const itemResult = await pool.query("SELECT * FROM inventory WHERE id = $1", [item_id]);
+    if (itemResult.rows.length > 0) {
+      await generateStockAlerts(pool, itemResult.rows[0], newStock);
+    }
 
     await pool.query("COMMIT");
     res.json({ message: "Stock adjusted successfully", newStock });

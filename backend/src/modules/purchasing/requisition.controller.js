@@ -27,31 +27,31 @@ export const generateRequisitionsFromStockLevels = async (req, res) => {
         i.reorder_point,
         i.safety_stock,
         i.lead_time_days,
-        COALESCE(cs.current_stock, 0) as current_stock,
+        i.current_stock as current_stock,
         CASE 
-          WHEN COALESCE(cs.current_stock, 0) = 0 THEN 'out_of_stock'
-          WHEN COALESCE(cs.current_stock, 0) <= i.reorder_point THEN 'low_stock'
+          WHEN i.current_stock = 0 THEN 'out_of_stock'
+          WHEN i.current_stock <= i.safety_stock THEN 'critical_stock'
           ELSE 'normal'
         END as stock_status,
         -- Calculate suggested reorder quantity
         CASE 
-          WHEN COALESCE(cs.current_stock, 0) = 0 THEN 
+          WHEN i.current_stock = 0 THEN 
             GREATEST(i.reorder_point + i.safety_stock, 1)
-          WHEN COALESCE(cs.current_stock, 0) <= i.reorder_point THEN 
-            GREATEST((i.reorder_point + i.safety_stock) - COALESCE(cs.current_stock, 0), 1)
+          WHEN i.current_stock <= i.safety_stock THEN 
+            GREATEST((i.reorder_point + i.safety_stock) - i.current_stock, 1)
           ELSE GREATEST(1, 1)
         END as suggested_quantity
       FROM inventory i
-      LEFT JOIN vw_current_stock cs ON i.id = cs.item_id
       WHERE i.is_active = true 
+        AND i.current_stock IS NOT NULL
         AND (
-          COALESCE(cs.current_stock, 0) = 0 
-          OR COALESCE(cs.current_stock, 0) <= i.reorder_point
+          i.current_stock = 0 
+          OR i.current_stock <= i.safety_stock
         )
       ORDER BY 
         CASE 
-          WHEN COALESCE(cs.current_stock, 0) = 0 THEN 1
-          WHEN COALESCE(cs.current_stock, 0) <= i.reorder_point THEN 2
+          WHEN i.current_stock = 0 THEN 1
+          WHEN i.current_stock <= i.safety_stock THEN 2
           ELSE 3
         END,
         i.name
@@ -59,9 +59,14 @@ export const generateRequisitionsFromStockLevels = async (req, res) => {
     
     console.log(`✅ Found ${result.rows.length} items needing replenishment`);
     
+    // Debug: Log each item being processed with detailed stock info
+    result.rows.forEach(item => {
+      console.log(`📦 Item: ${item.name} | Stock: ${item.current_stock} | Safety: ${item.safety_stock} | Reorder: ${item.reorder_point} | Status: ${item.stock_status}`);
+    });
+    
     // Group items by stock status for separate processing
     const outOfStockItems = result.rows.filter(item => item.stock_status === 'out_of_stock');
-    const lowStockItems = result.rows.filter(item => item.stock_status === 'low_stock');
+    const criticalStockItems = result.rows.filter(item => item.stock_status === 'critical_stock');
     
     const generatedRequisitions = [];
     
@@ -103,10 +108,10 @@ export const generateRequisitionsFromStockLevels = async (req, res) => {
       });
     }
     
-    // Process low stock items (normal priority)
-    for (const item of lowStockItems) {
+    // Process critical stock items (normal priority)
+    for (const item of criticalStockItems) {
       // Use the already fetched requestedBy (no duplicate query)
-      const prNumber = `PR-REORDER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const prNumber = `PR-CRITICAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const prResult = await client.query(
         `INSERT INTO purchase_requisitions (pr_number, requested_by, status)
          VALUES ($1, $2, 'PENDING')
@@ -136,7 +141,7 @@ export const generateRequisitionsFromStockLevels = async (req, res) => {
         suggested_quantity: item.suggested_quantity,
         actual_quantity: reorderQuantity,
         stock_status: item.stock_status,
-        urgency: 'Normal',
+        urgency: 'High',
         auto_generated: true
       });
     }
@@ -161,17 +166,163 @@ export const generateRequisitionsFromStockLevels = async (req, res) => {
   }
 };
 
+// Generate auto-PO suggestions (optionally auto-create PRs for critical stock)
+export const runAutoPOSuggestions = async (req, res) => {
+  const client = await (await import("../../config/db.js")).pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { auto_create_critical: autoCreateCritical = false } = req.body || {};
+
+    const userResult = await client.query(
+      'SELECT id FROM users WHERE is_active = true LIMIT 1'
+    );
+
+    if (autoCreateCritical && userResult.rows.length === 0) {
+      throw new Error('No active users found in the system');
+    }
+
+    const requestedBy = userResult.rows[0]?.id;
+    const now = new Date();
+
+    const result = await client.query(`
+      SELECT 
+        i.id,
+        i.name,
+        i.sku,
+        i.reorder_point,
+        i.safety_stock,
+        i.lead_time_days,
+        i.unit_cost,
+        i.unit_price,
+        s.name as supplier_name,
+        COALESCE(cs.current_stock, i.current_stock, 0) as current_stock,
+        COALESCE(SUM(ABS(it.quantity)), 0)::int as avg_monthly_demand
+      FROM inventory i
+      LEFT JOIN vw_current_stock cs ON i.id = cs.item_id
+      LEFT JOIN suppliers s ON s.id = i.supplier_id
+      LEFT JOIN inventory_transactions it 
+        ON it.item_id = i.id
+       AND it.created_at >= NOW() - INTERVAL '30 days'
+      WHERE i.is_active = true
+      GROUP BY i.id, i.name, i.sku, i.reorder_point, i.safety_stock, i.lead_time_days,
+               i.unit_cost, i.unit_price, s.name, cs.current_stock, i.current_stock
+      ORDER BY i.name
+    `);
+
+    const suggestions = [];
+    const autoCreatedPRs = [];
+
+    for (const item of result.rows) {
+      const currentStock = Number(item.current_stock ?? 0);
+      const reorderPoint = Number(item.reorder_point ?? 0);
+      const safetyStock = Number(item.safety_stock ?? 0);
+      const leadTimeDays = Number(item.lead_time_days ?? 0);
+
+      if (currentStock > reorderPoint && currentStock > safetyStock) {
+        continue;
+      }
+
+      const isCritical = currentStock <= safetyStock;
+      const suggestedQuantity = Math.max((reorderPoint + safetyStock) - currentStock, 1);
+      const suggestedDate = new Date(now.getTime() + (leadTimeDays * 24 * 60 * 60 * 1000))
+        .toISOString()
+        .split('T')[0];
+
+      let prCreated = false;
+      let prNumber = null;
+
+      if (autoCreateCritical && isCritical) {
+        const pendingResult = await client.query(
+          `SELECT pr.id, pr.pr_number
+           FROM purchase_requisitions pr
+           JOIN purchase_requisition_items pri ON pr.id = pri.pr_id
+           WHERE pri.item_id = $1 AND pr.status = 'PENDING'
+           LIMIT 1`,
+          [item.id]
+        );
+
+        if (pendingResult.rows.length === 0) {
+          prNumber = `PR-CRIT-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}-${Math.floor(Math.random() * 1000)}`;
+          const prResult = await client.query(
+            `INSERT INTO purchase_requisitions (pr_number, requested_by, status)
+             VALUES ($1, $2, 'PENDING')
+             RETURNING *`,
+            [prNumber, requestedBy]
+          );
+
+          await client.query(
+            'INSERT INTO purchase_requisition_items (pr_id, item_id, quantity) VALUES ($1, $2, $3)',
+            [prResult.rows[0].id, item.id, suggestedQuantity]
+          );
+
+          prCreated = true;
+          autoCreatedPRs.push({
+            pr_id: prResult.rows[0].id,
+            pr_number: prNumber,
+            item_id: item.id
+          });
+        }
+      }
+
+      suggestions.push({
+        id: item.id,
+        itemId: item.id,
+        itemName: item.name,
+        sku: item.sku,
+        supplier: item.supplier_name || 'Unassigned',
+        currentStock,
+        reorderPoint,
+        safetyStock,
+        avgMonthlyDemand: Number(item.avg_monthly_demand ?? 0),
+        leadTime: leadTimeDays,
+        suggestedQuantity,
+        suggestedDate,
+        priority: isCritical ? 'critical' : 'high',
+        status: prCreated ? 'pr_created' : 'pending',
+        confidence: isCritical ? 95 : 85,
+        calculationMethod: 'static',
+        reasoning: isCritical
+          ? `Current stock (${currentStock}) is at or below safety stock (${safetyStock}).`
+          : `Current stock (${currentStock}) is at or below reorder point (${reorderPoint}).`,
+        totalCost: Number(item.unit_cost ?? 0) * suggestedQuantity,
+        unitPrice: Number(item.unit_cost ?? 0),
+        created: now.toISOString(),
+        expires: new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)).toISOString(),
+        prCreated,
+        prNumber
+      });
+    }
+
+    await client.query('COMMIT');
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).json({
+      success: true,
+      suggestions,
+      auto_created_prs: autoCreatedPRs
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error generating auto PO suggestions:', error);
+    return res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// Get all purchase requisitions
 export const getAllRequisitions = async (req, res) => {
   try {
-    console.log('🔍 getAllRequisitions called at:', new Date().toISOString());
     const { pool } = await import("../../config/db.js");
-      const result = await pool.query(`
+    const result = await pool.query(`
       SELECT 
         pr.id,
         pr.pr_number,
         pr.status,
         pr.approved_by,
         pr.approved_at,
+        pr.rejection_reason,
         pr.created_at
       FROM purchase_requisitions pr
       ORDER BY pr.created_at DESC
@@ -342,39 +493,54 @@ export const updateRequisition = async (req, res) => {
     await client.query('BEGIN');
     
     const { id } = req.params;
-    const { status, rejectionReason } = req.body;
+    const { status, rejectionReason, rejection_reason, reason } = req.body;
     const reqPath = req.route.path;
+    const rejectionNote = rejectionReason || rejection_reason || reason;
+
+    const resolveUserId = async () => {
+      if (req.user?.userId) {
+        return req.user.userId;
+      }
+
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE is_active = true LIMIT 1'
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('No active users found in the system');
+      }
+
+      return userResult.rows[0].id;
+    };
     
     console.log('🔄 Updating requisition:', id, 'path:', reqPath);
     
     // Determine the status based on the endpoint
     let dbStatus;
+    const normalizedStatus = status ? status.toUpperCase() : null;
     if (reqPath.includes('/approve')) {
-      dbStatus = 'APPROVED';
+      dbStatus = 'INWARD_APPROVED';
     } else if (reqPath.includes('/reject')) {
       dbStatus = 'REJECTED';
-    } else if (status) {
-      dbStatus = status.toUpperCase();
+    } else if (normalizedStatus === 'APPROVED') {
+      dbStatus = 'INWARD_APPROVED';
+    } else if (normalizedStatus) {
+      dbStatus = normalizedStatus;
     } else {
       return res.status(400).json({ error: 'Status is required' });
     }
-    
+
+    const validStatuses = ['PENDING', 'INWARD_APPROVED', 'REJECTED'];
+    if (!validStatuses.includes(dbStatus)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
     let updateQuery, updateParams;
-    
-    if (dbStatus === 'APPROVED') {
-      // For approval, we need to set both approved_at and approved_by
-      // Get a real user ID for approved_by
-      const userResult = await client.query(
-        'SELECT id FROM users WHERE is_active = true LIMIT 1'
-      );
-      
-      if (userResult.rows.length === 0) {
-        throw new Error('No active users found in the system');
-      }
-      
-      const approvedBy = userResult.rows[0].id;
-      
-      // Update requisition status first
+    let updatedRequisition = null;
+
+    if (dbStatus === 'INWARD_APPROVED') {
+      const approvedBy = await resolveUserId();
+
       updateQuery = `
         UPDATE purchase_requisitions 
         SET status = $1, 
@@ -384,26 +550,22 @@ export const updateRequisition = async (req, res) => {
         RETURNING *
       `;
       updateParams = [dbStatus, approvedBy, id];
-      
-      // Execute requisition update
+
       const requisitionResult = await client.query(updateQuery, updateParams);
-      const updatedRequisition = requisitionResult.rows[0];
-      
-      // Auto-create Purchase Order from approved requisition
-      console.log('🚀 Auto-creating Purchase Order from requisition:', updatedRequisition.pr_number);
-      
-      // Check if PO already exists for this requisition
-      const existingPO = await client.query(
-        'SELECT po_number FROM purchase_orders WHERE po_number LIKE $1',
-        [`%${updatedRequisition.pr_number}%`]
-      );
-      
-      if (existingPO.rows.length > 0) {
-        console.log('ℹ️ PO already exists for this requisition:', existingPO.rows[0].po_number);
-        return res.status(200).json(updatedRequisition);
+      updatedRequisition = requisitionResult.rows[0];
+
+      if (!updatedRequisition) {
+        return res.status(404).json({ error: "Purchase requisition not found" });
       }
-      
-      // Get requisition items with supplier info
+
+      console.log('🚀 Auto-creating Purchase Order drafts from requisition:', updatedRequisition.pr_number);
+
+      const existingPOs = await client.query(
+        'SELECT id, supplier_id FROM purchase_orders WHERE pr_id = $1',
+        [id]
+      );
+      const existingSuppliers = new Set(existingPOs.rows.map(row => row.supplier_id));
+
       const itemsResult = await client.query(`
         SELECT pri.item_id, pri.quantity, i.supplier_id, s.name as supplier_name
         FROM purchase_requisition_items pri
@@ -411,17 +573,16 @@ export const updateRequisition = async (req, res) => {
         LEFT JOIN suppliers s ON s.id = i.supplier_id
         WHERE pri.pr_id = $1
       `, [id]);
-      
+
       if (itemsResult.rows.length > 0) {
-        // Group items by supplier
         const itemsBySupplier = {};
         const defaultSupplierId = '9e44dbf1-9b5d-4f51-b717-58eeb0a38e1c';
         const defaultSupplierName = 'Furniture Plus';
-        
+
         itemsResult.rows.forEach(item => {
           const supplierId = item.supplier_id || defaultSupplierId;
           const supplierName = item.supplier_name || defaultSupplierName;
-          
+
           if (!itemsBySupplier[supplierId]) {
             itemsBySupplier[supplierId] = {
               supplierId,
@@ -429,68 +590,64 @@ export const updateRequisition = async (req, res) => {
               items: []
             };
           }
-          
+
           itemsBySupplier[supplierId].items.push({
             item_id: item.item_id,
             quantity: item.quantity
           });
         });
-        
-        // Create separate PO for each supplier
+
         for (const [supplierId, supplierData] of Object.entries(itemsBySupplier)) {
-          // Generate PO number
-          const poNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
-          
-          // Create Purchase Order
+          if (existingSuppliers.has(supplierId)) {
+            console.log(`ℹ️ Draft PO already exists for supplier ${supplierData.supplierName}`);
+            continue;
+          }
+
+          const poNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}-${Math.floor(Math.random() * 1000)}`;
+          const expectedDelivery = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
           const poResult = await client.query(`
-            INSERT INTO purchase_orders (po_number, supplier_id, status, created_by, approved_by, approved_at, expected_delivery_date)
-            VALUES ($1, $2, 'APPROVED', $3, $4, NOW(), $5)
+            INSERT INTO purchase_orders (po_number, supplier_id, status, created_by, pr_id, expected_delivery_date)
+            VALUES ($1, $2, 'DRAFT', $3, $4, $5)
             RETURNING *
           `, [
             poNumber,
             supplierId,
             approvedBy,
-            approvedBy,
-            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+            id,
+            expectedDelivery
           ]);
-          
+
           const newPO = poResult.rows[0];
-          console.log(`✅ Purchase Order created: ${newPO.po_number} for ${supplierData.supplierName}`);
-          
-          // Add items to Purchase Order
+          console.log(`✅ Purchase Order draft created: ${newPO.po_number} for ${supplierData.supplierName}`);
+
           for (const item of supplierData.items) {
             await client.query(`
               INSERT INTO purchase_order_items (po_id, item_id, quantity, unit_price)
               VALUES ($1, $2, $3, 100)
             `, [newPO.id, item.item_id, item.quantity]);
           }
-          
+
           console.log(`✅ Items added to Purchase Order: ${supplierData.items.length} items`);
         }
       }
     } else if (dbStatus === 'REJECTED') {
-      // For rejection, we need to set rejection reason
-      // Get a real user ID for approved_by
-      const userResult = await client.query(
-        'SELECT id FROM users WHERE is_active = true LIMIT 1'
-      );
-      
-      if (userResult.rows.length === 0) {
-        throw new Error('No active users found in the system');
+      if (!rejectionNote) {
+        return res.status(400).json({ error: 'Rejection reason is required' });
       }
-      
-      const approvedBy = userResult.rows[0].id;
+
+      const approvedBy = await resolveUserId();
       updateQuery = `
         UPDATE purchase_requisitions 
         SET status = $1, 
             approved_at = NOW(),
-            approved_by = $2
-        WHERE id = $3 
+            approved_by = $2,
+            rejection_reason = $3
+        WHERE id = $4 
         RETURNING *
       `;
-      updateParams = [dbStatus, approvedBy, id];
+      updateParams = [dbStatus, approvedBy, rejectionNote, id];
     } else {
-      // For other status updates
       updateQuery = `
         UPDATE purchase_requisitions 
         SET status = $1
@@ -499,17 +656,20 @@ export const updateRequisition = async (req, res) => {
       `;
       updateParams = [dbStatus, id];
     }
-    
-    const result = await client.query(updateQuery, updateParams);
-    
-    if (result.rows.length === 0) {
+
+    if (!updatedRequisition) {
+      const result = await client.query(updateQuery, updateParams);
+      updatedRequisition = result.rows[0];
+    }
+
+    if (!updatedRequisition) {
       return res.status(404).json({ error: "Purchase requisition not found" });
     }
-    
-    console.log('✅ Purchase requisition updated successfully:', result.rows[0]);
-    
+
+    console.log('✅ Purchase requisition updated successfully:', updatedRequisition);
+
     await client.query('COMMIT');
-    res.json(result.rows[0]);
+    res.json(updatedRequisition);
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Error updating requisition:', error);

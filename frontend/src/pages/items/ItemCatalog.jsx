@@ -86,11 +86,11 @@ const ItemCatalog = () => {
   // Map frontend field names to backend column names before sending
   const mapPayloadToBackend = (data) => {
     const { id, category_name, location_code, stock_status, total_value, supplier, warehouse, ...rest } = data
-    console.log('Mapping payload to backend:', rest);
+    console.log('Mapping payload to backend:', rest)
     return {
       ...rest,
-      supplier_id: rest.supplier ? parseInt(rest.supplier) : null,
-      warehouse_id: rest.warehouse ? parseInt(rest.warehouse) : null,
+      supplier_id: rest.supplier_id || supplier || null,
+      warehouse_id: rest.warehouse_id || warehouse || null,
       requires_batch_tracking: rest.is_batch_tracked || false,
       requires_serial_tracking: rest.serialTracking || false,
       has_expiry: rest.is_expiry_tracked || false
@@ -149,10 +149,12 @@ const ItemCatalog = () => {
     setEditingItem(item)
     // Exclude id and virtual fields when populating form for editing
     const { id, category_name, location_code, stock_status, total_value, supplier_name, warehouse_name, ...formDataWithoutId } = item
-    // Ensure category_id is properly set from the item data
+    // Ensure category_id and pricing/stock fields are properly set from the item data
     setFormData({
       ...formDataWithoutId,
-      category_id: item.category_id || ''
+      category_id: item.category_id || '',
+      opening_stock: item.opening_stock ?? item.current_stock ?? 0,
+      selling_price: item.selling_price ?? item.sellingprice ?? item.unit_price ?? 0
     })
     setShowAddModal(true)
   }
@@ -309,7 +311,12 @@ const ItemCatalog = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredItems.map((item) => {
-                const stockStatus = getStockStatus(Number(item.current_stock), item.reorder_point, item.safety_stock)
+                const currentStock = Number(item.current_stock ?? item.opening_stock ?? 0)
+                const safetyStock = Number(item.safety_stock ?? 0)
+                const reorderPoint = Number(item.reorder_point ?? 0)
+                const costValue = Number(item.cost ?? item.unit_cost ?? 0)
+                const sellingValue = Number(item.selling_price ?? item.sellingprice ?? item.sellingPrice ?? item.unit_price ?? 0)
+                const stockStatus = getStockStatus(currentStock, reorderPoint, safetyStock)
                 const StatusIcon = stockStatus.icon
                 
                 return (
@@ -336,16 +343,16 @@ const ItemCatalog = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        <div>Current: {item.current_stock}</div>
+                        <div>Current: {currentStock.toLocaleString()}</div>
                         <div className="text-xs text-gray-500">
-                          Safety: {item.safety_stock} | Reorder: {item.reorder_point}
+                          Safety: {safetyStock.toLocaleString()} | Reorder: {reorderPoint.toLocaleString()}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        <div>Cost: ₹{item.cost || '0.00'}</div>
-                        <div className="text-xs text-gray-500">Sell: ₹{item.sellingPrice || '0.00'}</div>
+                        <div>Cost: ₹{costValue.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500">Sell: ₹{sellingValue.toFixed(2)}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
