@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Warehouse, ArrowLeft, MapPin, Package, Users, TrendingUp, AlertTriangle, Edit } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const WarehouseDetails = () => {
   const { id } = useParams()
@@ -227,21 +227,21 @@ const WarehouseDetails = () => {
                         />
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {warehouse.utilized.toLocaleString()} / {warehouse.capacity.toLocaleString()} sq ft
+                        {(warehouse.utilized || 0).toLocaleString()} / {(warehouse.capacity || 0).toLocaleString()} sq ft
                       </div>
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Total Capacity</span>
-                        <span className="text-sm font-medium text-gray-900">{warehouse.capacity.toLocaleString()} sq ft</span>
+                        <span className="text-sm font-medium text-gray-900">{(warehouse.capacity || 0).toLocaleString()} sq ft</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Utilized Space</span>
-                        <span className="text-sm font-medium text-gray-900">{warehouse.utilized.toLocaleString()} sq ft</span>
+                        <span className="text-sm font-medium text-gray-900">{(warehouse.utilized || 0).toLocaleString()} sq ft</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Available Space</span>
-                        <span className="text-sm font-medium text-green-600">{(warehouse.capacity - warehouse.utilized).toLocaleString()} sq ft</span>
+                        <span className="text-sm font-medium text-green-600">{((warehouse.capacity || 0) - (warehouse.utilized || 0)).toLocaleString()} sq ft</span>
                       </div>
                     </div>
                   </div>

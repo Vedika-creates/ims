@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Package, Plus, Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, AlertTriangle, FileText } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const GRNList = () => {
   const [grns, setGrns] = useState([])
