@@ -45,8 +45,8 @@ const Navbar = () => {
       icon: <ShoppingCart className="w-4 h-4" />,
       dropdown: [
         { name: 'Suppliers', path: '/suppliers' },
-        { name: 'Purchase Orders', path: '/purchasing/orders' },
         { name: 'Purchase Requisitions', path: '/purchasing/requisitions' },
+        { name: 'Purchase Orders', path: '/purchasing/orders' },
         { name: 'Goods Receipt Notes', path: '/grn' }
       ]
     },

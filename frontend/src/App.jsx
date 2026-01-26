@@ -80,17 +80,17 @@ function App() {
           <Route path="transfer-orders" element={<TransferOrdersList />} />
           <Route path="transfer-orders/:id" element={<TransferOrderDetails />} />
           
-          {/* Goods Receipt & Putaway Module */}
-          <Route path="grn" element={<GRNList />} />
-          <Route path="grn/create" element={<CreateGRN />} />
-          <Route path="grn/:id" element={<GRNDetails />} />
-          
           {/* Supplier & Purchase Module */}
           <Route path="suppliers" element={<SupplierList />} />
           <Route path="suppliers/:id" element={<SupplierDetails />} />
           <Route path="purchasing/requisitions" element={<PurchaseRequisitions />} />
           <Route path="purchasing/orders" element={<PurchaseOrdersSimple />} />
           <Route path="purchasing/orders/:id" element={<PODetails />} />
+          
+          {/* Goods Receipt & Putaway Module */}
+          <Route path="grn" element={<GRNList />} />
+          <Route path="grn/create" element={<CreateGRN />} />
+          <Route path="grn/:id" element={<GRNDetails />} />
           
           {/* Reorder Automation & Alerts Module */}
           <Route path="automation/reorder-rules" element={<ReorderRules />} />

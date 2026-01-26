@@ -255,7 +255,7 @@ const WarehouseList = () => {
                         {warehouse.total_locations || 0} locations
                       </div>
                       <div className="text-gray-500">
-                        ${Number(warehouse.total_value || 0).toLocaleString()}
+                        ₹{Number(warehouse.total_value || 0).toLocaleString('en-IN')}
                       </div>
                     </div>
 

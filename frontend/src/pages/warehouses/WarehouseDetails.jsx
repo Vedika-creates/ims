@@ -124,7 +124,7 @@ const WarehouseDetails = () => {
                 <div className="text-sm text-gray-500">Low Stock Items</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">${Number(warehouse.total_value || 0).toLocaleString()}</div>
+                <div className="text-2xl font-bold text-gray-900">₹{Number(warehouse.total_value || 0).toLocaleString('en-IN')}</div>
                 <div className="text-sm text-gray-500">Total Value</div>
               </div>
               <div className="text-center">

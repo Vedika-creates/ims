@@ -180,7 +180,7 @@ const SupplierDetails = () => {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="text-sm font-medium text-gray-500 mb-1">Total Value</h4>
-                    <p className="text-lg font-semibold text-gray-900">${supplier.totalValue.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{supplier.totalValue.toLocaleString('en-IN')}</p>
                   </div>
                 </div>
 
@@ -264,7 +264,7 @@ const SupplierDetails = () => {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="text-sm font-medium text-gray-500 mb-1">Average Order Value</h4>
-                    <div className="text-2xl font-bold text-gray-900">${(supplier.totalValue / supplier.totalOrders).toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-gray-900">₹{(supplier.totalValue / supplier.totalOrders).toLocaleString('en-IN')}</div>
                     <p className="text-sm text-gray-500">Per order</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">

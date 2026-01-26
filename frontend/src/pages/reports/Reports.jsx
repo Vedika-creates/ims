@@ -1,7 +1,34 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BarChart3, TrendingUp, TrendingDown, Package, DollarSign, Users, ShoppingCart, AlertTriangle, Download, FileText, Calendar, Filter } from 'lucide-react'
+import { BarChart3, TrendingUp, TrendingDown, Package, DollarSign, Users, ShoppingCart, AlertTriangle, Download, FileText, Calendar, Filter, PieChart, Activity } from 'lucide-react'
 import { api } from '../../services/api'
+import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 const Reports = () => {
   const navigate = useNavigate()
@@ -256,54 +283,188 @@ const Reports = () => {
 
   const renderOverview = () => {
     const { overview } = reports
+    
+    // Prepare data for charts
+    const inventoryStatusData = {
+      labels: ['Normal Stock', 'Low Stock', 'Out of Stock'],
+      datasets: [
+        {
+          label: 'Items',
+          data: [
+            overview.totalItems - overview.lowStockItems,
+            overview.lowStockItems - (overview.totalItems - overview.totalItems + overview.lowStockItems),
+            0 // Will be calculated from actual data
+          ],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 146, 60, 0.8)',
+            'rgba(239, 68, 68, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 146, 60)',
+            'rgb(239, 68, 68)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const orderStatusData = {
+      labels: ['Approved Orders', 'Pending Orders'],
+      datasets: [
+        {
+          label: 'Orders',
+          data: [overview.approvedOrders, overview.pendingOrders],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 191, 36, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 191, 36)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const kpiData = {
+      labels: ['Total Value', 'Total Items', 'Suppliers', 'Orders'],
+      datasets: [
+        {
+          label: 'KPIs',
+          data: [
+            overview.totalValue / 1000, // Convert to thousands for better visualization
+            overview.totalItems * 10, // Scale for visibility
+            overview.totalSuppliers * 100,
+            overview.totalOrders * 50
+          ],
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderColor: 'rgb(59, 130, 246)',
+          borderWidth: 1
+        }
+      ]
+    }
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <Package className="w-8 h-8 text-blue-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Items</p>
-              <p className="text-2xl font-bold text-gray-900">{overview.totalItems}</p>
+      <div>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <Package className="w-8 h-8 text-blue-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Items</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalItems}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <DollarSign className="w-8 h-8 text-green-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Value</p>
+                <p className="text-2xl font-bold text-gray-900">₹{overview.totalValue?.toLocaleString('en-IN') || '0'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <Users className="w-8 h-8 text-purple-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Suppliers</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalSuppliers}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <ShoppingCart className="w-8 h-8 text-orange-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Orders</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalOrders}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <DollarSign className="w-8 h-8 text-green-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900">₹{overview.totalValue?.toLocaleString('en-IN') || '0'}</p>
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Inventory Status Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Inventory Status</h3>
+            <div className="h-64">
+              <Doughnut 
+                data={inventoryStatusData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                    title: {
+                      display: true,
+                      text: 'Current Inventory Distribution'
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <Users className="w-8 h-8 text-purple-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Suppliers</p>
-              <p className="text-2xl font-bold text-gray-900">{overview.totalSuppliers}</p>
+          {/* Order Status Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Order Status</h3>
+            <div className="h-64">
+              <Pie 
+                data={orderStatusData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                    title: {
+                      display: true,
+                      text: 'Purchase Order Distribution'
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <ShoppingCart className="w-8 h-8 text-orange-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Orders</p>
-              <p className="text-2xl font-bold text-gray-900">{overview.totalOrders}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <TrendingUp className="w-8 h-8 text-green-500" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Low Stock Items</p>
-              <p className="text-2xl font-bold text-red-600">{overview.lowStockItems}</p>
+          {/* KPI Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Key Performance Indicators</h3>
+            <div className="h-64">
+              <Bar 
+                data={kpiData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    },
+                    title: {
+                      display: true,
+                      text: 'Business Metrics Overview'
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
@@ -343,11 +504,9 @@ const Reports = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Stock</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -364,7 +523,6 @@ const Reports = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">{item.reorderPoint}</td>
                   <td className="px-6 py-4 whitespace-nowrap">₹{item.value.toLocaleString('en-IN')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.category}</td>
                 </tr>
               ))}
             </tbody>
@@ -453,50 +611,187 @@ const Reports = () => {
       }
     }
 
+    // Prepare data for charts
+    const supplierOrderData = {
+      labels: supplierPerformance.slice(0, 10).map(s => s.name),
+      datasets: [
+        {
+          label: 'Total Orders',
+          data: supplierPerformance.slice(0, 10).map(s => s.totalOrders),
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderColor: 'rgb(59, 130, 246)',
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const supplierValueData = {
+      labels: supplierPerformance.slice(0, 10).map(s => s.name),
+      datasets: [
+        {
+          label: 'Total Order Value (₹)',
+          data: supplierPerformance.slice(0, 10).map(s => s.totalValue / 1000), // Convert to thousands
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          borderColor: 'rgb(34, 197, 94)',
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const performanceDistribution = {
+      labels: ['Excellent', 'Good', 'Needs Improvement'],
+      datasets: [
+        {
+          label: 'Suppliers',
+          data: [
+            supplierPerformance.filter(s => s.performance === 'excellent').length,
+            supplierPerformance.filter(s => s.performance === 'good').length,
+            supplierPerformance.filter(s => s.performance === 'needs_improvement').length
+          ],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(59, 130, 246, 0.8)',
+            'rgba(239, 68, 68, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(59, 130, 246)',
+            'rgb(239, 68, 68)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
     return (
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900">Supplier Performance Report</h2>
-            <button
-              onClick={() => exportToCSV(supplierPerformance, 'supplier-performance-report')}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </button>
+      <div>
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Supplier Orders Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Orders by Supplier</h3>
+            <div className="h-64">
+              <Bar 
+                data={supplierOrderData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Supplier Value Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Value by Supplier (₹K)</h3>
+            <div className="h-64">
+              <Bar 
+                data={supplierValueData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Performance Distribution Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Performance Distribution</h3>
+            <div className="h-64">
+              <Doughnut 
+                data={performanceDistribution}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Orders</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Order Value</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {supplierPerformance.map((supplier) => (
-                <tr key={supplier.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{supplier.totalOrders}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">₹{supplier.totalValue.toLocaleString('en-IN')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">₹{supplier.avgOrderValue.toLocaleString('en-IN')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPerformanceColor(supplier.performance)}`}>
-                      {supplier.performance}
-                    </span>
-                  </td>
+        {/* Table */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-gray-900">Supplier Performance Report</h2>
+              <button
+                onClick={() => exportToCSV(supplierPerformance, 'supplier-performance-report')}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Orders</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Order Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {supplierPerformance.map((supplier) => (
+                  <tr key={supplier.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{supplier.totalOrders}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">₹{supplier.totalValue.toLocaleString('en-IN')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">₹{supplier.avgOrderValue.toLocaleString('en-IN')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPerformanceColor(supplier.performance)}`}>
+                        {supplier.performance}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )
@@ -514,52 +809,198 @@ const Reports = () => {
       }
     }
 
+    // Prepare data for charts
+    const abcDistribution = {
+      labels: ['Class A', 'Class B', 'Class C'],
+      datasets: [
+        {
+          label: 'Items',
+          data: [
+            abcAnalysis.filter(item => item.classification === 'A').length,
+            abcAnalysis.filter(item => item.classification === 'B').length,
+            abcAnalysis.filter(item => item.classification === 'C').length
+          ],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 191, 36, 0.8)',
+            'rgba(239, 68, 68, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 191, 36)',
+            'rgb(239, 68, 68)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const valueDistribution = {
+      labels: ['Class A', 'Class B', 'Class C'],
+      datasets: [
+        {
+          label: 'Total Value (₹)',
+          data: [
+            abcAnalysis.filter(item => item.classification === 'A').reduce((sum, item) => sum + item.currentValue, 0) / 1000,
+            abcAnalysis.filter(item => item.classification === 'B').reduce((sum, item) => sum + item.currentValue, 0) / 1000,
+            abcAnalysis.filter(item => item.classification === 'C').reduce((sum, item) => sum + item.currentValue, 0) / 1000
+          ],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 191, 36, 0.8)',
+            'rgba(239, 68, 68, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 191, 36)',
+            'rgb(239, 68, 68)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const topItemsData = {
+      labels: abcAnalysis.slice(0, 10).map(item => item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name),
+      datasets: [
+        {
+          label: 'Value (₹K)',
+          data: abcAnalysis.slice(0, 10).map(item => item.currentValue / 1000),
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderColor: 'rgb(59, 130, 246)',
+          borderWidth: 1
+        }
+      ]
+    }
+
     return (
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900">ABC Analysis Report</h2>
-            <button
-              onClick={() => exportToCSV(abcAnalysis, 'abc-analysis-report')}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </button>
+      <div>
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* ABC Distribution Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">ABC Classification Distribution</h3>
+            <div className="h-64">
+              <Doughnut 
+                data={abcDistribution}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Value Distribution Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Value Distribution (₹K)</h3>
+            <div className="h-64">
+              <Bar 
+                data={valueDistribution}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Top Items Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Top 10 Items by Value</h3>
+            <div className="h-64">
+              <Bar 
+                data={topItemsData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: {
+                          size: 10
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Value</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Percentage</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Classification</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {abcAnalysis.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.sku}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.category}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">₹{item.currentValue.toLocaleString('en-IN')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.percentage.toFixed(1)}%</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getClassificationColor(item.classification)}`}>
-                      {item.classification}
-                    </span>
-                  </td>
+        {/* Table */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-gray-900">ABC Analysis Report</h2>
+              <button
+                onClick={() => exportToCSV(abcAnalysis, 'abc-analysis-report')}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Percentage</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Classification</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {abcAnalysis.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.sku}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">₹{item.currentValue.toLocaleString('en-IN')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.percentage.toFixed(1)}%</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getClassificationColor(item.classification)}`}>
+                        {item.classification}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )

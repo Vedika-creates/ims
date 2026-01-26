@@ -12,6 +12,12 @@ import warehousesRoutes from "./modules/warehouses/warehouses.routes.js";
 
 const router = Router();
 
+// ✅ SUPER SIMPLE TEST - Put at the very top
+router.get("/test", (req, res) => {
+  console.log("=== TEST ROUTE CALLED ===");
+  res.json({ message: "Routes are working!", timestamp: new Date().toISOString() });
+});
+
 router.use("/auth", authRoutes);
 router.use("/inventory", inventoryRoutes);
 router.use("/purchase-orders", purchaseRoutes);
@@ -23,7 +29,7 @@ router.use("/categories", categoriesRoutes);
 router.use("/transfer-orders", transferRoutes);
 router.use("/warehouses", warehousesRoutes);
 
-// ✅ HEALTH CHECK ROUTE (ADD THIS)
+// ✅ HEALTH CHECK ROUTE
 router.get("/health", (req, res) => {
   res.json({ status: "OK" });
 });
@@ -74,7 +80,6 @@ router.get("/units", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 // ✅ GET SUPPLIERS
 router.get("/suppliers", async (req, res) => {

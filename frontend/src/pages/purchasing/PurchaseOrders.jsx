@@ -346,7 +346,7 @@ const PurchaseOrders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${po.totalAmount.toLocaleString()} {po.currency}
+                      ₹{po.totalAmount.toLocaleString('en-IN')} {po.currency}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
@@ -438,7 +438,7 @@ const PurchaseOrders = () => {
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="text-sm font-medium text-gray-500 mb-1">Total Amount</h4>
-                  <p className="text-lg font-semibold text-gray-900">${selectedPO.totalAmount.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-gray-900">₹{selectedPO.totalAmount.toLocaleString('en-IN')}</p>
                   <p className="text-sm text-gray-600">{selectedPO.currency}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -493,10 +493,10 @@ const PurchaseOrders = () => {
                             {item.remaining}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${item.unitPrice}
+                            ₹{item.unitPrice}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${item.total.toLocaleString()}
+                            ₹{item.total.toLocaleString('en-IN')}
                           </td>
                         </tr>
                       ))}

@@ -379,7 +379,7 @@ const SupplierList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{supplier.totalOrders}</div>
-                    <div className="text-sm text-gray-500">${supplier.totalValue.toLocaleString()}</div>
+                    <div className="text-sm text-gray-500">₹{supplier.totalValue.toLocaleString('en-IN')}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status)}`}>

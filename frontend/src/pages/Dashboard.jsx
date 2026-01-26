@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
-import Button from '../components/Button'
-import Modal from '../components/Modal'
+import { Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
 import { inventoryService } from '../services/inventoryService'
 
 const Dashboard = () => {
@@ -16,7 +14,6 @@ const Dashboard = () => {
   })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showAddModal, setShowAddModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState('all')
 
   // Load inventory and summary data from API
@@ -81,10 +78,6 @@ const Dashboard = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Inventory Dashboard</h1>
-        <Button onClick={() => setShowAddModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Item
-        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -235,18 +228,6 @@ const Dashboard = () => {
           </table>
         </div>
       </div>
-
-      {/* Add Item Modal */}
-      <Modal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add New Item"
-        size="lg"
-      >
-        <div className="text-center py-8 text-gray-500">
-          Add item form will be implemented here
-        </div>
-      </Modal>
     </div>
   )
 }
