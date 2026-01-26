@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Package, Plus, Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, AlertTriangle, FileText } from 'lucide-react'
 
 const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const GRNList = () => {
+  const navigate = useNavigate()
   const [grns, setGrns] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('all')
@@ -168,7 +170,7 @@ const GRNList = () => {
               </div>
             </div>
             <button
-              onClick={() => window.location.href = '/grn/create'}
+              onClick={() => navigate('/grn/create')}
               className="btn btn-primary flex items-center space-x-2"
             >
               <Plus className="w-4 h-4" />
@@ -320,7 +322,7 @@ const GRNList = () => {
                       {/* Edit button for Pending GRNs */}
                       {grn.status === 'Pending' && (
                         <button
-                          onClick={() => window.location.href = `/grn/create?po=${grn.po_number}`}
+                          onClick={() => navigate(`/grn/create?po=${grn.po_number}`)}
                           className="text-blue-600 hover:text-blue-900"
                           title="Edit GRN"
                         >

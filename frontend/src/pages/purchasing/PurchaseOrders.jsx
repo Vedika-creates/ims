@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Plus, Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, Package, FileText, Truck, Trash2 } from 'lucide-react'
 import { api } from '../../services/api'
 
 const PurchaseOrders = () => {
+  const navigate = useNavigate()
   const [purchaseOrders, setPurchaseOrders] = useState([])
   const [approvedRequisitions, setApprovedRequisitions] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -157,7 +159,7 @@ const PurchaseOrders = () => {
         supplier_name: po.supplier,
         items: po.items || []
       }
-      window.location.href = `/grn/create?po=${encodeURIComponent(po.poNumber)}`
+      navigate(`/grn/create?po=${encodeURIComponent(po.poNumber)}`)
     }
   }
 
@@ -202,7 +204,7 @@ const PurchaseOrders = () => {
               </div>
             </div>
             <button
-              onClick={() => window.location.href = '/purchasing/orders/create'}
+              onClick={() => navigate('/purchasing/orders/create')}
               className="btn btn-primary flex items-center space-x-2"
             >
               <Plus className="w-4 h-4" />
