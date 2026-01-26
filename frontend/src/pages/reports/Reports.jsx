@@ -49,8 +49,7 @@ const Reports = () => {
 
   const loadOverview = async () => {
     try {
-      const requests = [api.get('/inventory'), api.get('/suppliers')]
-      if (canViewPurchaseOrders) requests.push(api.get('/purchase-orders'))
+      const requests = [api.get('/inventory'), api.get('/suppliers'), api.get('/purchase-orders')]
       const responses = await Promise.allSettled(requests)
       const [inventoryResponse, suppliersResponse, ordersResponse] = responses
       const inventory = inventoryResponse.status === 'fulfilled' && Array.isArray(inventoryResponse.value.data) ? inventoryResponse.value.data : []
@@ -65,6 +64,13 @@ const Reports = () => {
         const stock = item.current_stock
         return stock === 0 || stock === "0" || stock === null || stock === undefined || stock === ""
       }).length
+
+      // Log order access for debugging
+      if (ordersResponse.status === 'rejected') {
+        console.log('📊 Orders not accessible for this role (expected for Warehouse Staff)')
+      } else {
+        console.log(`📊 Loaded ${orders.length} orders for dashboard`)
+      }
 
       setReports(prev => ({
         ...prev,
@@ -198,7 +204,16 @@ const Reports = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Order Status</h3>
             <div className="h-64">
-              <Pie data={orderStatusData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Purchase Order Distribution' } } }} />
+              {approvedOrders === 0 && pendingOrders === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm">Order data not available for your role</p>
+                    <p className="text-xs mt-1">Contact Admin for purchase order access</p>
+                  </div>
+                </div>
+              ) : (
+                <Pie data={orderStatusData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Purchase Order Distribution' } } }} />
+              )}
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
