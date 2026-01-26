@@ -44,6 +44,9 @@ const Reports = () => {
   })
   const [loading, setLoading] = useState(false)
 
+  const userRole = localStorage.getItem('userRole') || ''
+  const canViewPurchaseOrders = ['Inventory Manager', 'Admin'].includes(userRole)
+
   useEffect(() => {
     loadReports()
   }, [activeTab, dateRange])
@@ -80,15 +83,15 @@ const Reports = () => {
 
   const loadOverview = async () => {
     try {
-      const [inventoryResponse, suppliersResponse, ordersResponse] = await Promise.all([
-        api.get('/inventory'),
-        api.get('/suppliers'),
-        api.get('/purchase-orders')
-      ])
-
-      const inventory = Array.isArray(inventoryResponse.data) ? inventoryResponse.data : []
-      const suppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
-      const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
+      const requests = [api.get('/inventory'), api.get('/suppliers')]
+      if (canViewPurchaseOrders) {
+        requests.push(api.get('/purchase-orders'))
+      }
+      const responses = await Promise.allSettled(requests)
+      const [inventoryResponse, suppliersResponse, ordersResponse] = responses
+      const inventory = inventoryResponse.status === 'fulfilled' && Array.isArray(inventoryResponse.value.data) ? inventoryResponse.value.data : []
+      const suppliers = suppliersResponse.status === 'fulfilled' && Array.isArray(suppliersResponse.value.data) ? suppliersResponse.value.data : []
+      const orders = ordersResponse && ordersResponse.status === 'fulfilled' && Array.isArray(ordersResponse.value.data) ? ordersResponse.value.data : []
 
       const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * (item.cost || 100)), 0)
       const totalOrders = orders.length
@@ -178,13 +181,14 @@ const Reports = () => {
 
   const loadSupplierPerformance = async () => {
     try {
-      const [suppliersResponse, ordersResponse] = await Promise.all([
-        api.get('/suppliers'),
-        api.get('/purchase-orders')
-      ])
-
-      const suppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
-      const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
+      const requests = [api.get('/suppliers')]
+      if (canViewPurchaseOrders) {
+        requests.push(api.get('/purchase-orders'))
+      }
+      const responses = await Promise.allSettled(requests)
+      const [suppliersResponse, ordersResponse] = responses
+      const suppliers = suppliersResponse.status === 'fulfilled' && Array.isArray(suppliersResponse.value.data) ? suppliersResponse.value.data : []
+      const orders = ordersResponse && ordersResponse.status === 'fulfilled' && Array.isArray(ordersResponse.value.data) ? ordersResponse.value.data : []
 
       const supplierPerformance = suppliers.map(supplier => {
         const supplierOrders = orders.filter(po => po.supplier_id === supplier.id)
