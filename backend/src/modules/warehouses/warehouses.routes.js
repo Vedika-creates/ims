@@ -7,7 +7,12 @@ import {
   deleteWarehouse
 } from './warehouses.controller.js';
 
+import { protect } from '../../middlewares/authMiddleware.js';
+import { allowRoles } from '../../middlewares/roleMiddleware.js';
+
 const router = express.Router();
+
+router.use(protect);
 
 // GET /api/warehouses - Get all warehouses
 router.get('/', getAllWarehouses);
@@ -16,12 +21,12 @@ router.get('/', getAllWarehouses);
 router.get('/:id', getWarehouseById);
 
 // POST /api/warehouses - Create new warehouse
-router.post('/', createWarehouse);
+router.post('/', allowRoles('Inventory Manager', 'Admin'), createWarehouse);
 
 // PUT /api/warehouses/:id - Update warehouse
-router.put('/:id', updateWarehouse);
+router.put('/:id', allowRoles('Inventory Manager', 'Admin'), updateWarehouse);
 
 // DELETE /api/warehouses/:id - Delete warehouse
-router.delete('/:id', deleteWarehouse);
+router.delete('/:id', allowRoles('Inventory Manager', 'Admin'), deleteWarehouse);
 
 export default router;

@@ -12,8 +12,7 @@ import { allowRoles } from "../../middlewares/roleMiddleware.js";
 
 const router = Router();
 
-// Temporarily remove authentication for testing
-// router.use(protect);
+router.use(protect);
 
 // GET /api/categories - Get all categories
 router.get("/", getAllCategories);
@@ -22,12 +21,12 @@ router.get("/", getAllCategories);
 router.get("/:id", getCategoryById);
 
 // POST /api/categories - Create new category
-router.post("/", createCategory);
+router.post("/", allowRoles("Inventory Manager", "Admin"), createCategory);
 
 // PUT /api/categories/:id - Update category
-router.put("/:id", updateCategory);
+router.put("/:id", allowRoles("Inventory Manager", "Admin"), updateCategory);
 
 // DELETE /api/categories/:id - Delete category
-router.delete("/:id", deleteCategory);
+router.delete("/:id", allowRoles("Inventory Manager", "Admin"), deleteCategory);
 
 export default router;

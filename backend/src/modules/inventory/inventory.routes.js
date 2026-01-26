@@ -14,8 +14,7 @@ import { allowRoles } from "../../middlewares/roleMiddleware.js";
 
 const router = Router();
 
-// Temporarily remove authentication for testing
-// router.use(protect);
+router.use(protect);
 
 // GET /api/inventory - Get all inventory items
 router.get("/", getAllInventory);
@@ -27,15 +26,15 @@ router.get("/summary", getInventorySummary);
 router.get("/:id", getInventoryById);
 
 // POST /api/inventory - Create new inventory item
-router.post("/", createInventory);
+router.post("/", allowRoles("Inventory Manager", "Admin"), createInventory);
 
 // PUT /api/inventory/:id - Update inventory item
-router.put("/:id", updateInventory);
+router.put("/:id", allowRoles("Inventory Manager", "Admin"), updateInventory);
 
 // DELETE /api/inventory/:id - Delete inventory item (soft delete)
-router.delete("/:id", deleteInventory);
+router.delete("/:id", allowRoles("Inventory Manager", "Admin"), deleteInventory);
 
 // POST /api/inventory/adjust - Adjust stock levels
-router.post("/adjust", adjustStock);
+router.post("/adjust", allowRoles("Inventory Manager", "Admin"), adjustStock);
 
 export default router;
