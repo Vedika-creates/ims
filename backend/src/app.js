@@ -4,7 +4,11 @@ import routes from "./routes.js";
 
 const app = express();
 
-app.use(cors());
+app.use(cors(
+    {
+        origin: "https://ims-1-z7dk.onrender.com/login"
+    }
+));
 app.use(express.json());
 
 app.get("/", (req, res) => {
