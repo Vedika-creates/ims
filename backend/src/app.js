@@ -6,7 +6,7 @@ const app = express();
 
 app.use(cors(
     {
-        origin: "https://ims-1-z7dk.onrender.com/login"
+        origin: "https://ims-1-z7dk.onrender.com"
     }
 ));
 app.use(express.json());
