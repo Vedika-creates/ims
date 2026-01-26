@@ -31,7 +31,21 @@ const UserManagement = () => {
   const warehouses = ['Warehouse A', 'Warehouse B', 'Warehouse C']
 
   useEffect(() => {
-    // Mock data - replace with API call
+    // Load users from localStorage or use mock data
+    const savedUsers = localStorage.getItem('users')
+    if (savedUsers) {
+      try {
+        setUsers(JSON.parse(savedUsers))
+      } catch (error) {
+        console.error('Failed to load users from localStorage:', error)
+        loadMockUsers()
+      }
+    } else {
+      loadMockUsers()
+    }
+  }, [])
+
+  const loadMockUsers = () => {
     const mockUsers = [
       {
         id: 1,
@@ -95,7 +109,13 @@ const UserManagement = () => {
       }
     ]
     setUsers(mockUsers)
-  }, [])
+    localStorage.setItem('users', JSON.stringify(mockUsers))
+  }
+
+  const saveUsersToStorage = (updatedUsers) => {
+    setUsers(updatedUsers)
+    localStorage.setItem('users', JSON.stringify(updatedUsers))
+  }
 
   const filteredUsers = users.filter(user =>
     user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,11 +147,12 @@ const UserManagement = () => {
     e.preventDefault()
     if (editingUser) {
       // Update existing user
-      setUsers(prev => prev.map(user =>
+      const updatedUsers = users.map(user =>
         user.id === editingUser.id
           ? { ...user, ...formData }
           : user
-      ))
+      )
+      saveUsersToStorage(updatedUsers)
     } else {
       // Add new user
       const newUser = {
@@ -140,7 +161,8 @@ const UserManagement = () => {
         lastLogin: null,
         twoFactorEnabled: false
       }
-      setUsers(prev => [...prev, newUser])
+      const updatedUsers = [...users, newUser]
+      saveUsersToStorage(updatedUsers)
     }
     setShowAddModal(false)
     setEditingUser(null)
@@ -181,7 +203,8 @@ const UserManagement = () => {
 
   const handleDelete = (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(prev => prev.filter(user => user.id !== userId))
+      const updatedUsers = users.filter(user => user.id !== userId)
+      saveUsersToStorage(updatedUsers)
     }
   }
 
