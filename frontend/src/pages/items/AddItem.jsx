@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Save, X } from 'lucide-react'
 import { inventoryService } from '../../services/inventoryService'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const AddItem = () => {
   const navigate = useNavigate()

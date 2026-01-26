@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Warehouse, Plus, Edit, Trash2, Search, Filter, MapPin, Package, AlertTriangle, TrendingUp } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const WarehouseList = () => {
   const [warehouses, setWarehouses] = useState([])

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Package, Plus, Edit, Trash2, Search, Filter, AlertTriangle, TrendingUp, TrendingDown, Eye, Download } from 'lucide-react'
 import { inventoryService } from '../../services/inventoryService'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = 'https://ims-0i8n.onrender.com/api'
 
 const ItemCatalog = () => {
   const [items, setItems] = useState([])
