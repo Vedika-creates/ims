@@ -6,7 +6,7 @@ const app = express();
 
 app.use(cors(
     {
-        origin: ["https://ims-1-z7dk.onrender.com", /^http:\/\/localhost:\d+$/]
+        origin: ["https://ims-1-z7dk.onrender.com", "https://ims-0i8n.onrender.com", /^http:\/\/localhost:\d+$/]
     }
 ));
 app.use(express.json());
