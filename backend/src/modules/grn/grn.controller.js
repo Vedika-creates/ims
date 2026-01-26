@@ -2,9 +2,32 @@
 export const getAllGRNs = async (req, res) => {
   try {
     const { pool } = await import("../../config/db.js");
-    
-    // Return empty array for now since GRN tables might not exist
-    res.json([]);
+
+    const result = await pool.query(`
+      SELECT
+        gr.id,
+        gr.grn_number,
+        gr.status,
+        gr.received_at,
+        gr.created_at,
+        po.po_number,
+        COALESCE(s.name, '') AS supplier,
+        COALESCE(u.name, '') AS received_by,
+        COALESCE(COUNT(gri.id), 0) AS total_items,
+        COALESCE(SUM(gri.accepted_qty), 0) AS total_quantity,
+        COALESCE(SUM(gri.accepted_qty * COALESCE(i.unit_cost, 0)), 0) AS total_value,
+        'INR' AS currency
+      FROM goods_receipts gr
+      LEFT JOIN purchase_orders po ON gr.po_id = po.id
+      LEFT JOIN suppliers s ON po.supplier_id = s.id
+      LEFT JOIN users u ON gr.received_by = u.id
+      LEFT JOIN goods_receipt_items gri ON gr.id = gri.grn_id
+      LEFT JOIN inventory i ON gri.item_id = i.id
+      GROUP BY gr.id, gr.grn_number, gr.status, gr.received_at, gr.created_at, po.po_number, s.name, u.name
+      ORDER BY gr.created_at DESC
+    `);
+
+    res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
