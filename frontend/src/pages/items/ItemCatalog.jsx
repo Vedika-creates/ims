@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Package, Plus, Edit, Trash2, Search, Filter, AlertTriangle, TrendingUp, TrendingDown, Eye, Download } from 'lucide-react'
 import { inventoryService } from '../../services/inventoryService'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const ItemCatalog = () => {
   const [items, setItems] = useState([])
@@ -34,12 +33,16 @@ const ItemCatalog = () => {
     // Load real data from API
     const loadData = async () => {
       try {
-        const [itemsData, categoriesData, suppliersData, warehousesData] = await Promise.all([
+        const [itemsData, categoriesRes, suppliersRes, warehousesRes] = await Promise.all([
           inventoryService.getItems(),
-          fetch(`${API_URL}/categories`).then(res => res.json()),
-          fetch(`${API_URL}/suppliers`).then(res => res.json()),
-          fetch(`${API_URL}/warehouses`).then(res => res.json())
+          api.get('/categories'),
+          api.get('/suppliers'),
+          api.get('/warehouses')
         ])
+
+        const categoriesData = categoriesRes.data
+        const suppliersData = suppliersRes.data
+        const warehousesData = warehousesRes.data
         
         console.log('Fresh items data:', itemsData);
         console.log('Fresh categories data:', categoriesData);
@@ -47,9 +50,9 @@ const ItemCatalog = () => {
         console.log('Fresh warehouses data:', warehousesData);
         
         setItems(itemsData)
-        setCategories(categoriesData)
-        setSuppliers(suppliersData)
-        setWarehouses(warehousesData)
+        setCategories(Array.isArray(categoriesData) ? categoriesData : [])
+        setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
+        setWarehouses(Array.isArray(warehousesData) ? warehousesData : [])
       } catch (error) {
         console.error('Failed to load data:', error)
         // Fallback to empty arrays if API fails

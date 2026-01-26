@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Save, X } from 'lucide-react'
 import { inventoryService } from '../../services/inventoryService'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const AddItem = () => {
   const navigate = useNavigate()
@@ -50,16 +49,14 @@ const AddItem = () => {
       try {
         setMetaError('')
         const [categoriesRes, suppliersRes, warehousesRes] = await Promise.all([
-          fetch(`${API_URL}/categories`),
-          fetch(`${API_URL}/suppliers`),
-          fetch(`${API_URL}/warehouses`)
+          api.get('/categories'),
+          api.get('/suppliers'),
+          api.get('/warehouses')
         ])
 
-        const [categoriesData, suppliersData, warehousesData] = await Promise.all([
-          categoriesRes.json(),
-          suppliersRes.json(),
-          warehousesRes.json()
-        ])
+        const categoriesData = categoriesRes.data
+        const suppliersData = suppliersRes.data
+        const warehousesData = warehousesRes.data
 
         setCategories(Array.isArray(categoriesData) ? categoriesData : [])
         setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])

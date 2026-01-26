@@ -86,9 +86,9 @@ const Reports = () => {
         api.get('/purchase-orders')
       ])
 
-      const inventory = inventoryResponse.data
-      const suppliers = suppliersResponse.data
-      const orders = ordersResponse.data
+      const inventory = Array.isArray(inventoryResponse.data) ? inventoryResponse.data : []
+      const suppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
+      const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
 
       const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * (item.cost || 100)), 0)
       const totalOrders = orders.length
@@ -123,7 +123,7 @@ const Reports = () => {
   const loadStockStatus = async () => {
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const stockStatus = inventory.map(item => ({
         id: item.id,
@@ -150,7 +150,7 @@ const Reports = () => {
   const loadLowStock = async () => {
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const lowStockItems = inventory
         .filter(item => item.current_stock <= item.reorder_point)
@@ -183,8 +183,8 @@ const Reports = () => {
         api.get('/purchase-orders')
       ])
 
-      const suppliers = suppliersResponse.data
-      const orders = ordersResponse.data
+      const suppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
+      const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
 
       const supplierPerformance = suppliers.map(supplier => {
         const supplierOrders = orders.filter(po => po.supplier_id === supplier.id)
@@ -213,7 +213,7 @@ const Reports = () => {
   const loadABCAnalysis = async () => {
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * (item.cost || 100)), 0)
       
@@ -244,7 +244,7 @@ const Reports = () => {
   const loadStockAging = async () => {
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const stockAging = inventory.map(item => ({
         id: item.id,
@@ -266,6 +266,10 @@ const Reports = () => {
   }
 
   const exportToCSV = (data, filename) => {
+    if (!Array.isArray(data) || data.length === 0) {
+      return
+    }
+
     const headers = Object.keys(data[0]).join(',')
     const csvContent = [
       headers,

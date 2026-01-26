@@ -25,9 +25,9 @@ const Analytics = () => {
         api.get('/purchase-orders')
       ])
 
-      const inventory = inventoryResponse.data
-      const suppliers = suppliersResponse.data
-      const orders = ordersResponse.data
+      const inventory = Array.isArray(inventoryResponse.data) ? inventoryResponse.data : []
+      const suppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
+      const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
 
       // Overview metrics
       const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * (item.cost || 100)), 0)

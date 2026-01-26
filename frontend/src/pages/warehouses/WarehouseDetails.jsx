@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Warehouse, ArrowLeft, MapPin, Package, Users, TrendingUp, AlertTriangle, Edit } from 'lucide-react'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const WarehouseDetails = () => {
   const { id } = useParams()
@@ -17,20 +16,12 @@ const WarehouseDetails = () => {
     const loadWarehouseData = async () => {
       try {
         // Load warehouse details
-        const warehouseResponse = await fetch(`${API_URL}/warehouses/${id}`)
-        if (warehouseResponse.ok) {
-          const warehouseData = await warehouseResponse.json()
-          setWarehouse(warehouseData)
-        } else {
-          throw new Error('Failed to load warehouse')
-        }
+        const warehouseResponse = await api.get(`/warehouses/${id}`)
+        setWarehouse(warehouseResponse.data)
 
         // Load warehouse locations
-        const locationsResponse = await fetch(`${API_URL}/warehouses/${id}/locations`)
-        if (locationsResponse.ok) {
-          const locationsData = await locationsResponse.json()
-          setLocations(locationsData)
-        }
+        const locationsResponse = await api.get(`/warehouses/${id}/locations`)
+        setLocations(Array.isArray(locationsResponse.data) ? locationsResponse.data : [])
 
         // Load recent activity (you might need to create this endpoint)
         // For now, we'll keep it empty or you can mock it
@@ -63,7 +54,9 @@ const WarehouseDetails = () => {
     )
   }
 
-  const utilizationPercentage = Math.round((warehouse.utilized / warehouse.capacity) * 100)
+  const utilizationPercentage = warehouse?.capacity
+    ? Math.round(((warehouse.utilized || 0) / warehouse.capacity) * 100)
+    : 0
   const getUtilizationColor = (utilized, capacity) => {
     const percentage = (utilized / capacity) * 100
     if (percentage >= 90) return 'red'
@@ -71,7 +64,7 @@ const WarehouseDetails = () => {
     return 'green'
   }
 
-  const utilizationColor = getUtilizationColor(warehouse.utilized, warehouse.capacity)
+  const utilizationColor = warehouse?.capacity ? getUtilizationColor(warehouse.utilized || 0, warehouse.capacity) : 'green'
 
   const handleEdit = () => {
     navigate(`/warehouses/${id}/edit`)

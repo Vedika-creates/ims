@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Warehouse, Plus, Edit, Trash2, Search, Filter, MapPin, Package, AlertTriangle, TrendingUp } from 'lucide-react'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const WarehouseList = () => {
   const [warehouses, setWarehouses] = useState([])
@@ -32,14 +31,8 @@ const WarehouseList = () => {
     const loadWarehouses = async () => {
       try {
         setError('')
-        const response = await fetch(`${API_URL}/warehouses`)
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data?.error || 'Failed to load warehouses')
-        }
-
-        setWarehouses(Array.isArray(data) ? data : [])
+        const response = await api.get('/warehouses')
+        setWarehouses(Array.isArray(response.data) ? response.data : [])
       } catch (error) {
         console.error('Failed to load warehouses:', error)
         setError(error.message || 'Failed to load warehouses')
@@ -52,8 +45,8 @@ const WarehouseList = () => {
     loadWarehouses()
   }, [])
 
-  const filteredWarehouses = warehouses.filter(warehouse =>
-    warehouse.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredWarehouses = (Array.isArray(warehouses) ? warehouses : []).filter(warehouse =>
+    (warehouse.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const handleInputChange = (e) => {
@@ -69,38 +62,16 @@ const WarehouseList = () => {
     try {
       if (editingWarehouse) {
         // Update existing warehouse
-        const response = await fetch(`${API_URL}/warehouses/${editingWarehouse.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData)
-        })
-        
-        if (response.ok) {
-          const updatedWarehouse = await response.json()
-          setWarehouses(prev => prev.map(warehouse =>
-            warehouse.id === editingWarehouse.id ? updatedWarehouse : warehouse
-          ))
-        } else {
-          throw new Error('Failed to update warehouse')
-        }
+        const response = await api.put(`/warehouses/${editingWarehouse.id}`, formData)
+        const updatedWarehouse = response.data
+        setWarehouses(prev => (Array.isArray(prev) ? prev : []).map(warehouse =>
+          warehouse.id === editingWarehouse.id ? updatedWarehouse : warehouse
+        ))
       } else {
         // Create new warehouse
-        const response = await fetch(`${API_URL}/warehouses`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData)
-        })
-        
-        if (response.ok) {
-          const newWarehouse = await response.json()
-          setWarehouses(prev => [...prev, newWarehouse])
-        } else {
-          throw new Error('Failed to create warehouse')
-        }
+        const response = await api.post('/warehouses', formData)
+        const newWarehouse = response.data
+        setWarehouses(prev => [...(Array.isArray(prev) ? prev : []), newWarehouse])
       }
       
       setShowAddModal(false)
@@ -140,15 +111,8 @@ const WarehouseList = () => {
   const handleDelete = async (warehouseId) => {
     if (window.confirm('Are you sure you want to delete this warehouse?')) {
       try {
-        const response = await fetch(`${API_URL}/warehouses/${warehouseId}`, {
-          method: 'DELETE'
-        })
-        
-        if (response.ok) {
-          setWarehouses(prev => prev.filter(warehouse => warehouse.id !== warehouseId))
-        } else {
-          throw new Error('Failed to delete warehouse')
-        }
+        await api.delete(`/warehouses/${warehouseId}`)
+        setWarehouses(prev => (Array.isArray(prev) ? prev : []).filter(warehouse => warehouse.id !== warehouseId))
       } catch (error) {
         console.error('Failed to delete warehouse:', error)
         alert('Failed to delete warehouse. Please try again.')

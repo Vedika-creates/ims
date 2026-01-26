@@ -15,7 +15,7 @@ const ABCAnalysis = () => {
     setLoading(true)
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * (item.cost || 100)), 0)
       

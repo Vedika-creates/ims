@@ -15,6 +15,30 @@ const normalizeRole = (role) => {
 
   return normalized;
 };
+
+let cachedSupplierHasIsActive = null;
+let cachedSupplierHasIsActiveAt = 0;
+const SUPPLIER_IS_ACTIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const suppliersHasIsActive = async (client) => {
+  const now = Date.now();
+  if (cachedSupplierHasIsActive !== null && now - cachedSupplierHasIsActiveAt < SUPPLIER_IS_ACTIVE_CACHE_TTL_MS) {
+    return cachedSupplierHasIsActive;
+  }
+
+  const result = await client.query(`
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'suppliers'
+      AND column_name = 'is_active'
+    LIMIT 1
+  `);
+
+  cachedSupplierHasIsActive = result.rows.length > 0;
+  cachedSupplierHasIsActiveAt = now;
+  return cachedSupplierHasIsActive;
+};
 export const getAllPurchaseOrders = async (req, res) => {
   try {
     console.log('🔍 getAllPurchaseOrders called at:', new Date().toISOString());
@@ -79,8 +103,9 @@ export const createPurchaseOrder = async (req, res) => {
     // Handle both supplier_id (from dropdown) and supplier_name (fallback)
     if (supplier_id) {
       // Validate supplier_id exists and is active
+      const hasIsActive = await suppliersHasIsActive(client);
       const supplierResult = await client.query(
-        'SELECT id FROM suppliers WHERE id = $1 AND is_active = true',
+        `SELECT id FROM suppliers WHERE id = $1${hasIsActive ? ' AND is_active = true' : ''}`,
         [supplier_id]
       );
       
@@ -91,8 +116,9 @@ export const createPurchaseOrder = async (req, res) => {
       supplierId = supplier_id;
     } else if (supplier_name) {
       // Fallback to supplier_name lookup
+      const hasIsActive = await suppliersHasIsActive(client);
       const supplierResult = await client.query(
-        'SELECT id FROM suppliers WHERE name = $1 AND is_active = true',
+        `SELECT id FROM suppliers WHERE name = $1${hasIsActive ? ' AND is_active = true' : ''}`,
         [supplier_name]
       );
       

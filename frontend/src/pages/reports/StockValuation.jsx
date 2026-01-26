@@ -19,7 +19,7 @@ const StockValuation = () => {
     setLoading(true)
     try {
       const response = await api.get('/inventory')
-      const inventory = response.data
+      const inventory = Array.isArray(response.data) ? response.data : []
 
       const valuation = inventory.map(item => ({
         id: item.id,

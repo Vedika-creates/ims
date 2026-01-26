@@ -47,7 +47,7 @@ const PurchaseRequisitions = () => {
               }
             });
             // Filter out inactive items from frontend as well
-            if (err.response?.data) {
+            if (Array.isArray(err.response?.data)) {
               console.log('🔍 Filtering inactive items from response:', err.response.data.filter(item => item.is_active !== false).length, 'items filtered');
               err.response.data = err.response.data.filter(item => item.is_active !== false);
             }
@@ -69,13 +69,16 @@ const PurchaseRequisitions = () => {
         console.log('📋 Requisitions fetched:', requisitionsRes.data);
         console.log('📋 Requisitions type:', typeof requisitionsRes.data);
         console.log('📏 Requisitions length:', requisitionsRes.data?.length);
+
+        const inventoryData = Array.isArray(inventoryRes.data) ? inventoryRes.data : [];
+        const requisitionsData = Array.isArray(requisitionsRes.data) ? requisitionsRes.data : [];
         
         // Double-check filtering
-        const activeItems = inventoryRes.data?.filter(item => item.is_active !== false) || [];
+        const activeItems = inventoryData.filter(item => item.is_active !== false) || [];
         console.log('✅ Active items after filtering:', activeItems.length);
         
         setInventoryItems(activeItems);
-        setRequisitions(requisitionsRes.data);
+        setRequisitions(requisitionsData);
       } catch (error) {
         console.error('Error in fetchData:', {
           message: error.message,

@@ -66,13 +66,16 @@ const CreateGRN = () => {
         
         console.log('📊 PO Response:', poResponse.data)
         console.log('📊 Requisition Response:', reqResponse.data)
+
+        const poData = Array.isArray(poResponse.data) ? poResponse.data : []
+        const reqData = Array.isArray(reqResponse.data) ? reqResponse.data : []
         
         // Filter approved purchase orders
-        const approvedPOs = poResponse.data.filter(po => po.status === 'APPROVED')
+        const approvedPOs = poData.filter(po => po.status === 'APPROVED')
         console.log('✅ Approved POs:', approvedPOs)
         
         // Filter approved purchase requisitions (INWARD_APPROVED or approved)
-        const approvedReqs = reqResponse.data.filter(req => 
+        const approvedReqs = reqData.filter(req => 
           req.status === 'INWARD_APPROVED' || req.status === 'approved'
         )
         console.log('✅ Approved Requisitions:', approvedReqs)
@@ -227,7 +230,7 @@ const CreateGRN = () => {
         
         // First, get a list of available suppliers to use a default one
         const suppliersResponse = await api.get('/suppliers')
-        const availableSuppliers = suppliersResponse.data
+        const availableSuppliers = Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []
         
         if (availableSuppliers.length === 0) {
           throw new Error('No suppliers available in the system. Please create a supplier first.')

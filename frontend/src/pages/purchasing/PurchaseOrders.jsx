@@ -24,7 +24,8 @@ const PurchaseOrders = () => {
       
       // Fetch actual purchase orders from backend
       const poResponse = await api.get('/purchase-orders')
-      const actualPOs = poResponse.data.map(po => ({
+      const poData = Array.isArray(poResponse.data) ? poResponse.data : []
+      const actualPOs = poData.map(po => ({
         id: po.id,
         poNumber: po.po_number,
         prNumber: po.pr_id ? `PR-${po.pr_id}` : null,
@@ -44,7 +45,8 @@ const PurchaseOrders = () => {
       
       // Fetch approved requisitions
       const reqResponse = await api.get('/purchase-requisitions')
-      const approved = reqResponse.data.filter(req => req.status === 'INWARD_APPROVED' || req.status === 'approved')
+      const reqData = Array.isArray(reqResponse.data) ? reqResponse.data : []
+      const approved = reqData.filter(req => req.status === 'INWARD_APPROVED' || req.status === 'approved')
       
       // Convert approved requisitions to PO format for display
       const convertedPOs = approved.map(req => ({

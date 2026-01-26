@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Package, Plus, Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, AlertTriangle, FileText } from 'lucide-react'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const GRNList = () => {
   const navigate = useNavigate()
@@ -16,8 +15,8 @@ const GRNList = () => {
     // Load real GRN data from API
     const loadGRNs = async () => {
       try {
-        const response = await fetch(`${API_URL}/grn`)
-        const data = await response.json()
+        const response = await api.get('/grn')
+        const data = Array.isArray(response.data) ? response.data : []
         setGrns(data)
       } catch (error) {
         console.error('Failed to load GRNs:', error)
@@ -90,7 +89,7 @@ const GRNList = () => {
     loadGRNs()
   }, [])
 
-  const filteredGRNs = grns.filter(grn => {
+  const filteredGRNs = (Array.isArray(grns) ? grns : []).filter(grn => {
     const matchesSearch = (grn.grn_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (grn.po_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (grn.supplier || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -105,23 +104,13 @@ const GRNList = () => {
 
   const handleQuickStatusUpdate = async (grn, newStatus) => {
     try {
-      const response = await fetch(`${API_URL}/grn/${grn.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus })
-      })
-      
-      if (response.ok) {
-        // Update the GRN in the local state
-        setGrns(prevGRNs => 
-          prevGRNs.map(g => g.id === grn.id ? { ...g, status: newStatus } : g)
-        )
-        alert(`GRN ${grn.grn_number} status updated to ${newStatus}`)
-      } else {
-        throw new Error('Failed to update status')
-      }
+      await api.put(`/grn/${grn.id}`, { status: newStatus })
+
+      // Update the GRN in the local state
+      setGrns(prevGRNs =>
+        (Array.isArray(prevGRNs) ? prevGRNs : []).map(g => g.id === grn.id ? { ...g, status: newStatus } : g)
+      )
+      alert(`GRN ${grn.grn_number} status updated to ${newStatus}`)
     } catch (error) {
       console.error('Failed to update GRN status:', error)
       alert('Failed to update GRN status')

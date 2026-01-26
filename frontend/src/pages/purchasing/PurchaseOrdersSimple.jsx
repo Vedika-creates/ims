@@ -4,8 +4,6 @@ import { ShoppingCart, Plus, Search, Eye, Edit, CheckCircle, Clock, Package, Cal
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
-const API_URL = 'https://ims-0i8n.onrender.com/api'
-
 const PurchaseOrdersSimple = () => {
   const navigate = useNavigate()
   const { user } = useAuth()

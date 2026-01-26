@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Building, Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Star } from 'lucide-react'
-
-const API_URL = 'https://ims-0i8n.onrender.com/api'
+import { api } from '../../services/api'
 
 const SupplierList = () => {
   const [suppliers, setSuppliers] = useState([])
@@ -32,8 +31,8 @@ const SupplierList = () => {
     // Load real data from API
     const loadSuppliers = async () => {
       try {
-        const response = await fetch(`${API_URL}/suppliers`)
-        const data = await response.json()
+        const response = await api.get('/suppliers')
+        const data = Array.isArray(response.data) ? response.data : []
         
         // Transform database fields to match frontend expectations
         const transformedData = data.map(supplier => ({
@@ -94,28 +93,16 @@ const SupplierList = () => {
       if (editingSupplier) {
         // Update existing supplier
         console.log(' Updating supplier:', editingSupplier.id)
-        const response = await fetch(`${API_URL}/suppliers/${editingSupplier.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            contactPerson: formData.contactPerson,
-            email: formData.email,
-            phone: formData.phone,
-            leadTimeDays: 0,
-            rating: formData.rating
-          })
+        const response = await api.put(`/suppliers/${editingSupplier.id}`, {
+          name: formData.name,
+          contactPerson: formData.contactPerson,
+          email: formData.email,
+          phone: formData.phone,
+          leadTimeDays: 0,
+          rating: formData.rating
         })
-        
-        console.log(' Update response status:', response.status)
-        
-        if (!response.ok) {
-          throw new Error('Failed to update supplier')
-        }
-        
-        const updatedSupplier = await response.json()
+
+        const updatedSupplier = response.data
         console.log(' Updated supplier:', updatedSupplier)
         
         setSuppliers(prev => prev.map(supplier =>
@@ -126,30 +113,16 @@ const SupplierList = () => {
       } else {
         // Create new supplier
         console.log(' Creating new supplier')
-        const response = await fetch(`${API_URL}/suppliers`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            contactPerson: formData.contactPerson,
-            email: formData.email,
-            phone: formData.phone,
-            leadTimeDays: 0,
-            rating: formData.rating
-          })
+        const response = await api.post('/suppliers', {
+          name: formData.name,
+          contactPerson: formData.contactPerson,
+          email: formData.email,
+          phone: formData.phone,
+          leadTimeDays: 0,
+          rating: formData.rating
         })
-        
-        console.log(' Create response status:', response.status)
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error(' API Error:', errorData)
-          throw new Error(`Failed to create supplier: ${errorData.error || 'Unknown error'}`)
-        }
-        
-        const newSupplier = await response.json()
+
+        const newSupplier = response.data
         console.log(' Created supplier:', newSupplier)
         
         // Transform response to match frontend format
@@ -229,20 +202,8 @@ const SupplierList = () => {
       console.log('🗑️ Deleting supplier:', supplierId)
       
       try {
-        const response = await fetch(`${API_URL}/suppliers/${supplierId}`, {
-          method: 'DELETE'
-        })
-        
-        console.log('📡 Delete response status:', response.status)
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error('❌ API Error:', errorData)
-          throw new Error(`Failed to delete supplier: ${errorData.error || 'Unknown error'}`)
-        }
-        
-        const result = await response.json()
-        console.log('✅ Deleted supplier result:', result)
+        const response = await api.delete(`/suppliers/${supplierId}`)
+        console.log('✅ Deleted supplier result:', response.data)
         
         // Remove from local state
         setSuppliers(prev => {

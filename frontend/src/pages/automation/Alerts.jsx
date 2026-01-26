@@ -47,7 +47,8 @@ const Alerts = () => {
     }
 
     const response = await api.get('/alerts', { params })
-    setAlerts(response.data.map(mapAlert))
+    const data = Array.isArray(response.data) ? response.data : []
+    setAlerts(data.map(mapAlert))
   }
 
   useEffect(() => {
@@ -56,7 +57,7 @@ const Alerts = () => {
     })
   }, [selectedStatus, selectedType])
 
-  const filteredAlerts = alerts.filter(alert => {
+  const filteredAlerts = (Array.isArray(alerts) ? alerts : []).filter(alert => {
     const matchesSearch = alert.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          alert.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (alert.itemName && alert.itemName.toLowerCase().includes(searchTerm.toLowerCase()))
