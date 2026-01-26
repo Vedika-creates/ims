@@ -51,6 +51,13 @@ const Reports = () => {
     loadReports()
   }, [activeTab, dateRange])
 
+  // Also load on first mount to fix the "need to refresh" issue
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      loadOverview()
+    }
+  }, [])
+
   const loadReports = async () => {
     setLoading(true)
     try {
@@ -115,7 +122,8 @@ const Reports = () => {
           totalOrders: totalOrders,
           approvedOrders: approvedOrders,
           pendingOrders: pendingOrders,
-          lowStockItems: inventory.filter(item => item.current_stock <= item.reorder_point).length
+          lowStockItems: inventory.filter(item => item.current_stock <= item.reorder_point).length,
+          outOfStockItems: outOfStockItems
         }
       }))
     } catch (error) {
@@ -252,11 +260,6 @@ const Reports = () => {
 
       const stockAging = inventory.map(item => ({
         id: item.id,
-        name: item.name,
-        sku: item.sku,
-        currentStock: item.current_stock,
-        value: item.current_stock * (item.cost || 100),
-        category: item.category_name || 'Uncategorized',
         aging: item.current_stock > 0 ? 'fresh' : 'unknown' // Would need last_received_date for proper aging
       }))
 
@@ -292,6 +295,13 @@ const Reports = () => {
   const renderOverview = () => {
     const { overview } = reports
     
+    // Ensure numeric defaults to avoid NaN/undefined
+    const totalItems = Number(overview.totalItems) || 0
+    const lowStockItems = Number(overview.lowStockItems) || 0
+    const outOfStockItems = Number(overview.outOfStockItems) || 0
+    const approvedOrders = Number(overview.approvedOrders) || 0
+    const pendingOrders = Number(overview.pendingOrders) || 0
+    
     // Prepare data for charts
     const inventoryStatusData = {
       labels: ['Normal Stock', 'Low Stock', 'Out of Stock'],
@@ -299,9 +309,9 @@ const Reports = () => {
         {
           label: 'Items',
           data: [
-            overview.totalItems - overview.lowStockItems,
-            overview.lowStockItems - (overview.totalItems - overview.totalItems + overview.lowStockItems),
-            0 // Will be calculated from actual data
+            Math.max(0, totalItems - lowStockItems - outOfStockItems),
+            lowStockItems,
+            outOfStockItems
           ],
           backgroundColor: [
             'rgba(34, 197, 94, 0.8)',
@@ -323,7 +333,7 @@ const Reports = () => {
       datasets: [
         {
           label: 'Orders',
-          data: [overview.approvedOrders, overview.pendingOrders],
+          data: [approvedOrders, pendingOrders],
           backgroundColor: [
             'rgba(34, 197, 94, 0.8)',
             'rgba(251, 191, 36, 0.8)'
@@ -343,10 +353,284 @@ const Reports = () => {
         {
           label: 'KPIs',
           data: [
-            overview.totalValue / 1000, // Convert to thousands for better visualization
-            overview.totalItems * 10, // Scale for visibility
-            overview.totalSuppliers * 100,
-            overview.totalOrders * 50
+            (overview.totalValue || 0) / 1000, // Convert to thousands for better visualization
+            totalItems * 10, // Scale for visibility
+            (overview.totalSuppliers || 0) * 100,
+            (overview.totalOrders || 0) * 50
+          ],
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderColor: 'rgb(59, 130, 246)',
+          borderWidth: 1
+        }
+      ]
+    }
+
+    return (
+      <div>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <Package className="w-8 h-8 text-blue-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Items</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalItems}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <DollarSign className="w-8 h-8 text-green-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Value</p>
+                <p className="text-2xl font-bold text-gray-900">₹{overview.totalValue?.toLocaleString('en-IN') || '0'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <Users className="w-8 h-8 text-purple-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Suppliers</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalSuppliers}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <ShoppingCart className="w-8 h-8 text-orange-500" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Total Orders</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalOrders}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Inventory Status Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Inventory Status</h3>
+            <div className="h-64">
+              <Doughnut 
+                data={inventoryStatusData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                    title: {
+                      display: true,
+                      text: 'Current Inventory Distribution'
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Order Status Pie Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Order Status</h3>
+            <div className="h-64">
+              <Pie 
+                data={orderStatusData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                    title: {
+                      display: true,
+                      text: 'Purchase Order Distribution'
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* KPI Bar Chart */}
+          <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Key Performance Indicators</h3>
+            <div className="h-64">
+              <Bar 
+                data={kpiData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    },
+                    title: {
+                      display: true,
+                      text: 'Business Metrics Overview'
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderStockStatus = () => {
+    const { stockStatus } = reports
+    
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'out_of_stock': return 'bg-red-100 text-red-800'
+        case 'low_stock': return 'bg-yellow-100 text-yellow-800'
+        default: return 'bg-green-100 text-green-800'
+      }
+    }
+
+    return (
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium text-gray-900">Stock Status Report</h2>
+            <button
+              onClick={() => exportToCSV(stockStatus, 'stock-status-report')}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {stockStatus.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.sku}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
+                      {item.status === 'out_of_stock' ? 'Out of Stock' : item.status === 'low_stock' ? 'Low Stock' : 'Normal'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.reorderPoint}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">₹{item.value.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  const renderLowStock = () => {
+    const { lowStock } = reports
+
+    const getUrgencyColor = (urgency) => {
+      switch (urgency) {
+        case 'critical': return 'bg-red-100 text-red-800'
+        case 'high': return 'bg-orange-100 text-orange-800'
+        default: return 'bg-yellow-100 text-yellow-800'
+      }
+    }
+
+    return (
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+```
+
+```javascript
+const renderOverview = () => {
+    const { overview } = reports
+    
+    // Ensure numeric defaults to avoid NaN/undefined
+    const totalItems = Number(overview.totalItems) || 0
+    const lowStockItems = Number(overview.lowStockItems) || 0
+    const outOfStockItems = Number(overview.outOfStockItems) || 0
+    const approvedOrders = Number(overview.approvedOrders) || 0
+    const pendingOrders = Number(overview.pendingOrders) || 0
+    
+    // Prepare data for charts
+    const inventoryStatusData = {
+      labels: ['Normal Stock', 'Low Stock', 'Out of Stock'],
+      datasets: [
+        {
+          label: 'Items',
+          data: [
+            Math.max(0, totalItems - lowStockItems - outOfStockItems),
+            lowStockItems,
+            outOfStockItems
+          ],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 146, 60, 0.8)',
+            'rgba(239, 68, 68, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 146, 60)',
+            'rgb(239, 68, 68)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const orderStatusData = {
+      labels: ['Approved Orders', 'Pending Orders'],
+      datasets: [
+        {
+          label: 'Orders',
+          data: [approvedOrders, pendingOrders],
+          backgroundColor: [
+            'rgba(34, 197, 94, 0.8)',
+            'rgba(251, 191, 36, 0.8)'
+          ],
+          borderColor: [
+            'rgb(34, 197, 94)',
+            'rgb(251, 191, 36)'
+          ],
+          borderWidth: 1
+        }
+      ]
+    }
+
+    const kpiData = {
+      labels: ['Total Value', 'Total Items', 'Suppliers', 'Orders'],
+      datasets: [
+        {
+          label: 'KPIs',
+          data: [
+            (overview.totalValue || 0) / 1000, // Convert to thousands for better visualization
+            totalItems * 10, // Scale for visibility
+            (overview.totalSuppliers || 0) * 100,
+            (overview.totalOrders || 0) * 50
           ],
           backgroundColor: 'rgba(59, 130, 246, 0.8)',
           borderColor: 'rgb(59, 130, 246)',
