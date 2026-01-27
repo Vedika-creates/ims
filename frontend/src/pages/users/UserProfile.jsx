@@ -33,15 +33,17 @@ const UserProfile = () => {
   }, [user])
 
   const handleInputChange = (e) => {
+    // Preserve original input value without any transformation
+    const originalValue = e.target.value
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: originalValue
     })
   }
 
   const handleProfileUpdate = (e) => {
     e.preventDefault()
-    // API call to update profile
+    // API call to update profile - preserve original data without transformation
     console.log('Updating profile:', formData)
   }
 

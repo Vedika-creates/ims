@@ -136,9 +136,11 @@ const UserManagement = () => {
         }
       }))
     } else {
+      // Preserve original input value without any transformation
+      const originalValue = value
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'checkbox' ? checked : value
+        [name]: type === 'checkbox' ? checked : originalValue
       }))
     }
   }
@@ -146,7 +148,7 @@ const UserManagement = () => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (editingUser) {
-      // Update existing user
+      // Update existing user - preserve original data without transformation
       const updatedUsers = users.map(user =>
         user.id === editingUser.id
           ? { ...user, ...formData }
@@ -154,7 +156,7 @@ const UserManagement = () => {
       )
       saveUsersToStorage(updatedUsers)
     } else {
-      // Add new user
+      // Add new user - preserve original data without transformation
       const newUser = {
         id: users.length + 1,
         ...formData,
